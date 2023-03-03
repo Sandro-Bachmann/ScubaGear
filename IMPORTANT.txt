@@ -1,1 +1,2 @@
+Use Powershell 5! 
 Use Disconnect-SCuBATenant at the end of session
