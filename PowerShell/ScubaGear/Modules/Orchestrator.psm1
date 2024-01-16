@@ -14,7 +14,6 @@ function Invoke-SCuBA {
     - Azure Active Directory: aad
     - Defender for Office 365: defender
     - Exchange Online: exo
-    - OneDrive: onedrive
     - MS Power Platform: powerplatform
     - SharePoint Online: sharepoint
     - MS Teams: teams.
@@ -78,6 +77,8 @@ function Invoke-SCuBA {
     tool for use in specific tests.
     .Parameter DarkMode
     Set switch to enable report dark mode by default.
+    .Parameter Quiet
+    Do not launch external browser for report.
     .Example
     Invoke-SCuBA
     Run an assessment against by default a commercial M365 Tenant against the
@@ -111,9 +112,9 @@ function Invoke-SCuBA {
     param (
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
-        $ProductNames = @("teams", "exo", "defender", "aad", "sharepoint", "onedrive"),
+        $ProductNames = @("teams", "exo", "defender", "aad", "sharepoint"),
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateSet("commercial", "gcc", "gcchigh", "dod", IgnoreCase = $false)]
@@ -186,7 +187,7 @@ function Invoke-SCuBA {
         [ValidateNotNullOrEmpty()]
         [ValidateScript({
             if (-Not ($_ | Test-Path)){
-                throw "SCuBA configuration file or folder does not exist."
+                throw "SCuBA configuration file or folder does not exist. $_"
             }
             if (-Not ($_ | Test-Path -PathType Leaf)){
                 throw "SCuBA configuration Path argument must be a file."
@@ -199,7 +200,12 @@ function Invoke-SCuBA {
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
         [switch]
-        $DarkMode
+        $DarkMode,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Configuration')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [switch]
+        $Quiet
     )
     process {
         # Retrive ScubaGear Module versions
@@ -215,7 +221,7 @@ function Invoke-SCuBA {
         if ($PSCmdlet.ParameterSetName -eq 'Report'){
 
             if ($ProductNames -eq '*'){
-                $ProductNames = "teams", "exo", "defender", "aad", "sharepoint", "onedrive", "powerplatform"
+                $ProductNames = "teams", "exo", "defender", "aad", "sharepoint", "powerplatform"
             }
 
             $ProvidedParameters = @{
@@ -244,6 +250,12 @@ function Invoke-SCuBA {
             }
             else {
                 $ScubaConfig = [ScubaConfig]::GetInstance().Configuration
+            }
+
+            if ($ScubaConfig.AppID){
+                $PSBoundParameters.Add("AppID", $ScubaConfig.AppID)
+                $PSBoundParameters.Add("CertificateThumbprint", $ScubaConfig.CertificateThumbprint)
+                $PSBoundParameters.Add("Organization", $ScubaConfig.Organization)
             }
         }
 
@@ -313,14 +325,15 @@ function Invoke-SCuBA {
             # Converted back from JSON String for PS Object use
             $TenantDetails = $TenantDetails | ConvertFrom-Json
             $ReportParams = @{
-                'ProductNames' = $ScubaConfig.ProductNames;
-                'TenantDetails' = $TenantDetails;
-                'ModuleVersion' = $ModuleVersion;
-                'OutFolderPath' = $OutFolderPath;
-                'OutProviderFileName' = $ScubaConfig.OutProviderFileName;
-                'OutRegoFileName' = $ScubaConfig.OutRegoFileName;
-                'OutReportName' = $ScubaConfig.OutReportName;
-                'DarkMode' = $DarkMode;
+                'ProductNames' = $ScubaConfig.ProductNames
+                'TenantDetails' = $TenantDetails
+                'ModuleVersion' = $ModuleVersion
+                'OutFolderPath' = $OutFolderPath
+                'OutProviderFileName' = $ScubaConfig.OutProviderFileName
+                'OutRegoFileName' = $ScubaConfig.OutRegoFileName
+                'OutReportName' = $ScubaConfig.OutReportName
+                'DarkMode' = $DarkMode
+                'Quiet' = $Quiet
             }
             Invoke-ReportCreation @ReportParams
         }
@@ -345,7 +358,6 @@ $ArgToProd = @{
     aad = "AAD";
     powerplatform = "PowerPlatform";
     sharepoint = "SharePoint";
-    onedrive = "OneDrive";
 }
 
 $ProdToFullName = @{
@@ -355,7 +367,6 @@ $ProdToFullName = @{
     AAD = "Azure Active Directory";
     PowerPlatform = "Microsoft Power Platform";
     SharePoint = "SharePoint Online";
-    OneDrive = "OneDrive for Business";
 }
 
 function Get-FileEncoding{
@@ -388,7 +399,7 @@ function Invoke-ProviderList {
     param (
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductNames,
 
@@ -474,9 +485,6 @@ function Invoke-ProviderList {
                         "powerplatform" {
                             $RetVal = Export-PowerPlatformProvider -M365Environment $M365Environment | Select-Object -Last 1
                         }
-                        "onedrive" {
-                            $RetVal = Export-OneDriveProvider -PnPFlag:$PnPFlag | Select-Object -Last 1
-                        }
                         "sharepoint" {
                             $RetVal = Export-SharePointProvider @SPOProviderParams | Select-Object -Last 1
                         }
@@ -514,7 +522,7 @@ function Invoke-ProviderList {
 
         $BaselineSettingsExport = @"
         {
-                "baseline_version": "0.1",
+                "baseline_version": "1",
                 "module_version": "$ModuleVersion",
                 "date": "$($CurrentDate) $($TimeZone)",
                 "tenant_details": $($TenantDetails),
@@ -551,7 +559,7 @@ function Invoke-RunRego {
     param(
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductNames,
 
@@ -694,7 +702,7 @@ function Invoke-ReportCreation {
     param(
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductNames,
 
@@ -730,8 +738,8 @@ function Invoke-ReportCreation {
 
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
-        [boolean]
-        $Quiet = $false,
+        [switch]
+        $Quiet,
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
@@ -750,6 +758,8 @@ function Invoke-ReportCreation {
             $ReporterPath = Join-Path -Path $PSScriptRoot -ChildPath "CreateReport" -ErrorAction 'Stop'
             $Images = Join-Path -Path $ReporterPath -ChildPath "images" -ErrorAction 'Stop'
             Copy-Item -Path $Images -Destination $IndividualReportPath -Force -Recurse -ErrorAction 'Stop'
+
+            $SecureBaselines =  Import-SecureBaseline -ProductNames $ProductNames
 
             foreach ($Product in $ProductNames) {
                 $BaselineName = $ArgToProd[$Product]
@@ -775,6 +785,7 @@ function Invoke-ReportCreation {
                     'OutProviderFileName' = $OutProviderFileName;
                     'OutRegoFileName' = $OutRegoFileName;
                     'DarkMode' = $DarkMode;
+                    'SecureBaselines' = $SecureBaselines
                 }
 
                 $Report = New-Report @CreateReportParams
@@ -804,8 +815,8 @@ function Invoke-ReportCreation {
                 }
 
                 if ($Report.Errors -gt 0) {
-                    $Noun = Pluralize -SingularNoun "check" -PluralNoun "errors" -Count $Report.Manual
-                    $ErrorSummary = "<div class='summary error'>$($Report.Errors) PowerShell $($Noun)</div>"
+                    $Noun = Pluralize -SingularNoun "error" -PluralNoun "errors" -Count $Report.Errors
+                    $ErrorSummary = "<div class='summary error'>$($Report.Errors) $($Noun)</div>"
                 }
 
                 $Fragment += [pscustomobject]@{
@@ -848,7 +859,7 @@ function Invoke-ReportCreation {
             Add-Type -AssemblyName System.Web -ErrorAction 'Stop'
             $ReportFileName = Join-Path -Path $OutFolderPath "$($OutReportName).html" -ErrorAction 'Stop'
             [System.Web.HttpUtility]::HtmlDecode($ReportHTML) | Out-File $ReportFileName -ErrorAction 'Stop'
-            if ($Quiet -eq $False) {
+            if (-Not $Quiet) {
                 Invoke-Item $ReportFileName
             }
         }
@@ -871,7 +882,7 @@ function Get-TenantDetail {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory=$true)]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", IgnoreCase = $false)]
         [ValidateNotNullOrEmpty()]
         [string[]]
         $ProductNames,
@@ -888,9 +899,6 @@ function Get-TenantDetail {
         Get-AADTenantDetail
     }
     elseif ($ProductNames.Contains("sharepoint")) {
-        Get-AADTenantDetail
-    }
-    elseif ($ProductNames.Contains("onedrive")) {
         Get-AADTenantDetail
     }
     elseif ($ProductNames.Contains("teams")) {
@@ -936,7 +944,7 @@ function Invoke-Connection {
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductNames,
 
@@ -949,10 +957,6 @@ function Invoke-Connection {
         [hashtable]
         $BoundParameters
     )
-
-    # Increase PowerShell Maximum Function Count to support version 5.1 limitation
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'MaximumFunctionCount')]
-    $MaximumFunctionCount = 32000
 
     $ConnectTenantParams = @{
         'ProductNames' = $ProductNames;
@@ -982,13 +986,13 @@ function Compare-ProductList {
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductNames,
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductsFailed,
 
@@ -1094,7 +1098,7 @@ function Remove-Resources {
     #>
     [CmdletBinding()]
     $Providers = @("ExportPowerPlatform", "ExportEXOProvider", "ExportAADProvider",
-    "ExportDefenderProvider", "ExportTeamsProvider", "ExportSharePointProvider", "ExportOneDriveProvider")
+    "ExportDefenderProvider", "ExportTeamsProvider", "ExportSharePointProvider")
     foreach ($Provider in $Providers) {
         Remove-Module $Provider -ErrorAction "SilentlyContinue"
     }
@@ -1127,7 +1131,6 @@ function Invoke-RunCached {
     - Azure Active Directory: aad
     - Defender for Office 365: defender
     - Exchange Online: exo
-    - OneDrive: onedrive
     - MS Power Platform: powerplatform
     - SharePoint Online: sharepoint
     - MS Teams: teams.
@@ -1212,7 +1215,7 @@ function Invoke-RunCached {
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
-        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", "onedrive", '*', IgnoreCase = $false)]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
         [string[]]
         $ProductNames = '*',
 
@@ -1277,8 +1280,8 @@ function Invoke-RunCached {
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
         [ValidateSet($true, $false)]
-        [boolean]
-        $Quiet = $false,
+        [switch]
+        $Quiet,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [switch]
@@ -1295,7 +1298,7 @@ function Invoke-RunCached {
             }
 
             if ($ProductNames -eq '*'){
-                $ProductNames = "teams", "exo", "defender", "aad", "sharepoint", "onedrive", "powerplatform"
+                $ProductNames = "teams", "exo", "defender", "aad", "sharepoint", "powerplatform"
             }
 
             # The equivalent of ..\..
