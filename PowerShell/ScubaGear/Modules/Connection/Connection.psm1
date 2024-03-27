@@ -61,7 +61,10 @@ function Connect-Tenant {
                        'Organization.Read.All',
                        'RoleManagement.Read.Directory',
                        'GroupMember.Read.All',
-                       'Directory.Read.All'
+                       'Directory.Read.All',
+                       'PrivilegedEligibilitySchedule.Read.AzureADGroup',
+                       'PrivilegedAccess.Read.AzureADGroup',
+                       'RoleManagementPolicy.Read.AzureADGroup'
                    )
                    $GraphParams = @{
                        'ErrorAction' = 'Stop';
@@ -195,6 +198,7 @@ function Connect-Tenant {
                                ClientId = $ServicePrincipalParams.CertThumbprintParams.AppID;
                                Tenant  = $ServicePrincipalParams.CertThumbprintParams.Organization; # Organization Domain is actually required here.
                            }
+                           $env:PNPPOWERSHELL_UPDATECHECK = "false"  # disable PnP update banner
                            Connect-PnPOnline @PnPParams | Out-Null
                        }
                        else {

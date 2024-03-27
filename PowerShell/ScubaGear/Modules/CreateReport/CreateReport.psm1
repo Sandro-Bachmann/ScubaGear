@@ -1,8 +1,8 @@
 function New-Report {
      <#
     .Description
-    This function creates the individual HTML report using the TestResults.json.
-    Output will be stored as an HTML file in the InvidualReports folder in the OutPath Folder.
+    This function creates the individual HTML/json reports using the TestResults.json.
+    Output will be stored as HTML/json files in the InvidualReports folder in the OutPath Folder.
     The report Home page and link tree will be named BaselineReports.html
     .Functionality
     Internal
@@ -75,6 +75,12 @@ function New-Report {
         "Module Version" = $SettingsExport.module_version
     }
 
+    # Json version of the product-specific report
+    $ReportJson = @{
+        "MetaData" = $MetaData
+        "Results" = @()
+    };
+
     $MetaDataTable = $MetaData | ConvertTo-HTML -Fragment
     $MetaDataTable = $MetaDataTable -replace '^(.*?)<table>','<table id="tenant-data" style = "text-align:center;">'
     $Fragments += $MetaDataTable
@@ -95,14 +101,7 @@ function New-Report {
             $Test = $TestResults | Where-Object -Property PolicyId -eq $Control.Id
 
             if ($null -ne $Test){
-                $MissingCommands = @()
-
-                if ($SettingsExport."$($BaselineName)_successful_commands" -or $SettingsExport."$($BaselineName)_unsuccessful_commands") {
-                    # If neither of these keys are present, it means the provider for that baseline
-                    # hasn't been updated to the updated error handling method. This check
-                    # here ensures backwards compatibility until all providers are udpated.
-                    $MissingCommands = $Test.Commandlet | Where-Object {$SettingsExport."$($BaselineName)_successful_commands" -notcontains $_}
-                }
+                $MissingCommands = $Test.Commandlet | Where-Object {$SettingsExport."$($BaselineName)_successful_commands" -notcontains $_}
 
                 if ($MissingCommands.Count -gt 0) {
                     $Result = "Error"
@@ -168,10 +167,27 @@ function New-Report {
         $Number = $BaselineName.ToUpper() + '-' + $BaselineGroup.GroupNumber
         $Name = $BaselineGroup.GroupName
         $GroupAnchor = New-MarkdownAnchor -GroupNumber $BaselineGroup.GroupNumber -GroupName $BaselineGroup.GroupName
-        $MarkdownLink = "<a class='control_group' href=`"$($ScubaGitHubUrl)/blob/v$($SettingsExport.module_version)/baselines/$($BaselineName.ToLower()).md#$GroupAnchor`" target=`"_blank`">$Name</a>"
+        $MarkdownLink = "<a class='control_group' href=`"$($ScubaGitHubUrl)/blob/v$($SettingsExport.module_version)/PowerShell/ScubaGear/baselines/$($BaselineName.ToLower()).md$GroupAnchor`" target=`"_blank`">$Name</a>"
         $Fragments += $Fragment | ConvertTo-Html -PreContent "<h2>$Number $MarkdownLink</h2>" -Fragment
+        $ReportJson.Results += $Fragment
+
+        # Regex will filter out any <table> tags without an id attribute (replace new fragments only, not <table> tags which have already been modified)
+        $Fragments = $Fragments -replace ".*(<table(?![^>]+id)*>)", "<table class='policy-data' id='$Number' style = 'text-align:center;'>"
     }
 
+    # Craft the json report
+    $ReportJson.ReportSummary = $ReportSummary
+    $JsonFileName = Join-Path -Path $IndividualReportPath -ChildPath "$($BaselineName)Report.json"
+    $ReportJson = ConvertTo-Json @($ReportJson) -Depth 3
+
+    # ConvertTo-Json for some reason converts the <, >, and ' characters into unicode escape sequences.
+    # Convert those back to ASCII.
+    $ReportJson = $ReportJson.replace("\u003c", "<")
+    $ReportJson = $ReportJson.replace("\u003e", ">")
+    $ReportJson = $ReportJson.replace("\u0027", "'")
+    $ReportJson | Out-File $JsonFileName
+
+    # Finish building the html report
     $Title = "$($FullName) Baseline Report"
     $AADWarning = "<p> Note: Conditional Access (CA) Policy exclusions and additional policy conditions
     may limit a policy's scope more narrowly than desired. Recommend reviewing matching policies
@@ -183,16 +199,32 @@ function New-Report {
     $ReportHTMLPath = Join-Path -Path $ReporterPath -ChildPath "IndividualReport"
     $ReportHTML = (Get-Content $(Join-Path -Path $ReportHTMLPath -ChildPath "IndividualReport.html")) -Join "`n"
     $ReportHTML = $ReportHTML.Replace("{TITLE}", $Title)
+    $BaselineURL = "<a href=`"$($ScubaGitHubUrl)/blob/v$($SettingsExport.module_version)/PowerShell/ScubaGear/baselines/$($BaselineName.ToLower()).md`" target=`"_blank`"><h3 style=`"width: 100px;`">Baseline Documents</h3></a>"
+    $ReportHTML = $ReportHTML.Replace("{BASELINE_URL}", $BaselineURL)
 
     # Handle AAD-specific reporting
     if ($BaselineName -eq "aad") {
+        $LicenseInfoArray = $SettingsExport.license_information | ForEach-Object {
+            [pscustomobject]@{
+                "License SKU Identifier" = $_.SkuPartNumber
+                "Licenses in Use" = $_.ConsumedUnits
+                "Total Licenses" = $_.PrepaidUnits.Enabled
+            }
+        }
+        # Convert the custom objects to an HTML table
+        $LicenseTable = $LicenseInfoArray | ConvertTo-Html -As Table -Fragment
+        $LicenseTable = $LicenseTable -replace '^(.*?)<table>','<table id="license-info" style = "text-align:center;">'
+
+        # Create a section header for the licensing information
+        $LicensingHTML = "<h2>Tenant Licensing Information</h2>" + $LicenseTable
+
         $ReportHTML = $ReportHTML.Replace("{AADWARNING}", $AADWarning)
-        $ReportHTML = $ReportHTML.Replace("{CAPTABLES}", "")
+        $ReportHTML = $ReportHTML.Replace("{LICENSING_INFO}", $LicensingHTML)
         $CapJson = ConvertTo-Json $SettingsExport.cap_table_data
     }
     else {
         $ReportHTML = $ReportHTML.Replace("{AADWARNING}", $NoWarning)
-        $ReportHTML = $ReportHTML.Replace("{CAPTABLES}", "")
+        $ReportHTML = $ReportHTML.Replace("{LICENSING_INFO}", "")
         $CapJson = "null"
     }
 
@@ -237,7 +269,7 @@ function Import-SecureBaseline{
         [Parameter(Mandatory = $false)]
         [ValidateScript({Test-Path -PathType Container $_})]
         [string]
-        $BaselinePath = (Join-Path -Path $PSScriptRoot -ChildPath "..\..\..\..\baselines\")
+        $BaselinePath = (Join-Path -Path $PSScriptRoot -ChildPath "..\..\baselines\")
     )
     $Output = @{}
 
@@ -265,7 +297,6 @@ function Import-SecureBaseline{
 
                 # Iterate over matched policy ids found
                 foreach ($LineNumber in $LineNumbers) {
-
                     $Value = [System.Net.WebUtility]::HtmlEncode($Value)
                     $Id = [string]$MdLines[$LineNumber].Substring(5)
 
@@ -283,6 +314,7 @@ function Import-SecureBaseline{
                     $MaxLineSearch = 20;
                     $Value = ([string]$MdLines[$LineNumber+$LineAdvance]).Trim()
                     $IsMalformedDescription = $false
+                    $IsList = $false
 
                     try {
                         if ([string]::IsNullOrWhiteSpace($Value)){
@@ -300,8 +332,20 @@ function Import-SecureBaseline{
                                 # Reached Criticality comment so policy description is complete.
                                 break
                             }
+
+                            # Policy description contains a list assuming list is denoted by a colon character.
+                            if ($Value[-1] -eq ":") {
+                                $isList = $true
+                            }
+
                             if (-not [string]::IsNullOrWhiteSpace([string]$MdLines[$LineNumber+$LineAdvance])) {
-                                $Value += "`n" + ([string]$MdLines[$LineNumber+$LineAdvance]).Trim()
+                                # List case, use newline character between value text
+                                if ($isList) {
+                                    $Value += "`n" + ([string]$MdLines[$LineNumber+$LineAdvance]).Trim()
+                                }
+                                else { # Value ending with newline char, use whitespace character between value text
+                                    $Value += " " + ([string]$MdLines[$LineNumber+$LineAdvance]).Trim()
+                                }
                             }
 
                             if ($LineAdvance -gt $MaxLineSearch){
@@ -309,6 +353,12 @@ function Import-SecureBaseline{
                                 break
                             }
                         }
+
+                        # Description italics substitution
+                        $Value = Resolve-HTMLMarkdown -OriginalString $Value -HTMLReplace "italic"
+
+                        # Description bold substitution
+                        $Value = Resolve-HTMLMarkdown -OriginalString $Value -HTMLReplace "bold"
 
                         $Group.Controls += @{"Id"=$Id; "Value"=$Value; "Deleted"=$Deleted; MalformedDescription=$IsMalformedDescription}
                     }
@@ -349,6 +399,32 @@ function New-MarkdownAnchor{
     else {
         $InvalidGroupNumber = New-Object System.ArgumentException "$GroupNumber is not valid"
         throw $InvalidGroupNumber
+    }
+}
+
+function Resolve-HTMLMarkdown{
+    param (
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OriginalString,
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $HTMLReplace
+    )
+
+    # Replace markdown with italics substitution
+    if ($HTMLReplace.ToLower() -match "italic") {
+        $ResolvedString = $OriginalString -replace '(_)([^\v][^_]*[^\v])?(_)', '<i>${2}</i>'
+        return $ResolvedString
+    } elseif($HTMLReplace.ToLower() -match "bold") {
+        $ResolvedString = $OriginalString -replace '(\*\*)(.*?)(\*\*)', '<b>${2}</b>'
+        return $ResolvedString
+    } else {
+        $InvalidHTMLReplace = New-Object System.ArgumentException "$HTMLReplace is not valid"
+        throw $InvalidHTMLReplace
+        return $OriginalString
     }
 }
 

@@ -271,7 +271,7 @@ Describe "Policy Checks for <ProductName>"{
             $PolicyResultObj = $IntermediateTestResults | Where-Object { $_.PolicyId -eq $PolicyId }
             $BaselineReports = Join-Path -Path $OutputFolder -ChildPath 'BaselineReports.html'
             $Url = (Get-Item $BaselineReports).FullName
-            $Driver = Start-SeChrome -Headless -Quiet -Arguments @('start-maximized', 'AcceptInsecureCertificates')
+            $Driver = Start-SeChrome -Headless -Quiet -Arguments @('start-maximized', 'AcceptInsecureCertificates') -Verbose
             Open-SeUrl $Url -Driver $Driver | Out-Null
         }
         Context "Execute test, <TestDescription>" -ForEach $Tests {
@@ -285,11 +285,11 @@ Describe "Policy Checks for <ProductName>"{
                 $Details | Should -Not -BeNullOrEmpty -Because "expect details, $Details"
 
                 if ($IsNotChecked){
-                    $Details | Should -Match 'Not currently checked automatically.'
+                    $Details | Should -Match 'This product does not currently have the capability to check compliance for this policy.+'
                 }
 
                 if ($IsCustomImplementation){
-                    $Details | Should -Match 'Custom implementation allowed.'
+                    $Details | Should -Match 'A custom product can be used to fulfill this policy requirement.+'
                 }
 
                 # Check final HTML output
@@ -332,6 +332,9 @@ Describe "Policy Checks for <ProductName>"{
                             }
                         }
                     }
+                    elseif ($Table.GetProperty("id") -eq "license-info"){
+                        #Currently empty to determine if necessary and what to test in section
+                    }
                     else {
                         # Control report tables
                         ForEach ($Row in $Rows){
@@ -354,15 +357,15 @@ Describe "Policy Checks for <ProductName>"{
 
                                     if ($IsCustomImplementation){
                                         $RowData[2].text | Should -BeLikeExactly "N/A" -Because "custom policies should not have results. [$Msg]"
-                                        $RowData[4].text | Should -Match 'Custom implementation allowed.'
+                                        $RowData[4].text | Should -Match 'A custom product can be used to fulfill this policy requirement.+'
                                     }
                                     elseif ($IsNotChecked){
                                         $RowData[2].text | Should -BeLikeExactly "N/A" -Because "custom policies should not have results. [$Msg]"
-                                        $RowData[4].text | Should -Match 'Not currently checked automatically.'
+                                        $RowData[4].text | Should -Match 'This product does not currently have the capability to check compliance for this policy.+'
                                     }
                                     elseif ($true -eq $ExpectedResult) {
                                         $RowData[2].text | Should -BeLikeExactly "Pass" -Because "expected policy to pass. [$Msg]"
-                                        $RowData[4].GetAttribute("innerHTML") | FromInnerHtml | Should -BeExactly $PolicyResultObj.ReportDetails
+                                        IsEquivalence -First $RowData[4].GetAttribute("innerHTML") -Second $PolicyResultObj.ReportDetails | Should -BeTrue
                                     }
                                     elseif ($null -ne $ExpectedResult ) {
                                         if ('Shall' -eq $RowData[3].text){
@@ -374,8 +377,7 @@ Describe "Policy Checks for <ProductName>"{
                                         else {
                                             $RowData[2].text | Should -BeLikeExactly "Unknown" -Because "unexpected criticality. [$Msg]"
                                         }
-
-                                        $RowData[4].GetAttribute("innerHTML") | FromInnerHtml | Should -BeExactly $PolicyResultObj.ReportDetails
+                                        IsEquivalence -First $RowData[4].GetAttribute("innerHTML") -Second $PolicyResultObj.ReportDetails | Should -BeTrue
                                     }
                                     else {
                                         $false | Should -BeTrue -Because "policy should be custom, not checked, or have and expected result. [$Msg]"

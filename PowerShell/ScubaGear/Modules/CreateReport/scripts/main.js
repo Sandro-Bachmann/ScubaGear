@@ -2,7 +2,8 @@
  * Adds the red, green, yellow, and gray coloring to the individual report pages.
  */
 const colorRows = () => {
-    let rows = document.querySelectorAll('tr');
+    //Adjusted the querySelector to only use the rows which have policy data within them instead of every table in report
+    let rows = document.querySelectorAll('.policy-data tr');
     const requirementCol = 1;
     const statusCol = 2;
     const criticalityCol = 3;
@@ -97,6 +98,9 @@ const fillCAPTable = () => {
         table.setAttribute("class", "caps_table");
         capDiv.appendChild(table);
 
+        let tbody = document.createElement("tbody");
+        table.appendChild(tbody);
+
         let header = document.createElement("tr");
         for (let i = 0; i < capColNames.length; i++) {
             let th = document.createElement("th");
@@ -115,7 +119,7 @@ const fillCAPTable = () => {
             th.innerHTML = capColNames[i];
             header.appendChild(th);
         }
-        table.appendChild(header);
+        tbody.appendChild(header);
 
         for (let i = 0; i < caps.length; i++) {
             let tr = document.createElement("tr");
@@ -133,7 +137,7 @@ const fillCAPTable = () => {
             img.rowNumber = i;
             img.addEventListener("click", expandCAPRow);
             tr.querySelectorAll('td')[0].appendChild(img);
-            table.appendChild(tr);
+            tbody.appendChild(tr);
         }
     }
     catch (error) {
@@ -299,5 +303,6 @@ const expandCAPRow = (event) => {
 window.addEventListener('DOMContentLoaded', (event) => {
     colorRows();
     fillCAPTable();
+    applyScopeAttributes();
     mountDarkMode("Individual Report");
 });

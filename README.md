@@ -1,35 +1,34 @@
-# ScubaGear
+# ScubaGear <!-- omit in toc -->
 <p>
         <a href="https://github.com/cisagov/ScubaGear/releases" alt="ScubaGear version #">
-        <img src="https://img.shields.io/badge/ScubaGear-v1.0.0-%2328B953?labelColor=%23005288" /></a>
+        <img src="https://img.shields.io/badge/ScubaGear-v1.1.1-%2328B953?labelColor=%23005288" /></a>
 </p>
 
 Developed by CISA, ScubaGear is an assessment tool that verifies a Microsoft 365 (M365) tenant’s configuration conforms to the policies described in the Secure Cloud Business Applications ([SCuBA](https://cisa.gov/scuba)) Security Configuration Baseline [documents](https://github.com/cisagov/ScubaGear/tree/main/baselines).
 
-## Table of Contents
+## Table of Contents <!-- omit in toc -->
 - [M365 Product License Assumptions](#m365-product-license-assumptions)
 - [Getting Started](#getting-started)
   - [Download the Latest Release](#download-the-latest-release)
-  - [Installing the Required PowerShell Modules](#installing-the-required-powershell-modules)
-  - [Download the Required OPA executable](#download-the-required-opa-executable)
   - [PowerShell Execution Policies](#powershell-execution-policies)
 - [Usage](#usage)
-  - [Importing the Module](#importing-the-module)
-  - [Examples](#example-1-run-an-assessment-against-all-products-except-powerplatform)
+  - [Importing the module](#importing-the-module)
+  - [Examples](#examples)
   - [Parameter Definitions](#parameter-definitions)
+  - [ScubaGear Configuration File Syntax and Examples](#scubagear-configuration-file-syntax-and-examples)
   - [AAD Conditional Access Policy Exemptions](#aad-conditional-access-policy-exemptions)
   - [Viewing the Report](#viewing-the-report)
 - [Required Permissions](#required-permissions)
   - [User Permissions](#user-permissions)
   - [Microsoft Graph Powershell SDK permissions](#microsoft-graph-powershell-sdk-permissions)
-  - [Service Principal Application Permissions & Setup](#service-principal-application-permissions--setup)
+  - [Service Principal Application Permissions \& Setup](#service-principal-application-permissions--setup)
 - [Architecture](#architecture)
 - [Repository Organization](#repository-organization)
 - [Troubleshooting](#troubleshooting)
   - [Executing against multiple tenants](#executing-against-multiple-tenants)
   - [Errors connecting to Defender](#errors-connecting-to-defender)
   - [Exchange Online maximum connections error](#exchange-online-maximum-connections-error)
-  - [Power Platform Errors](#power-platform-errors)
+  - [Power Platform errors](#power-platform-errors)
   - [Microsoft Graph Errors](#microsoft-graph-errors)
   - [Running the Tool Behind Some Proxies](#running-the-tool-behind-some-proxies)
   - [Utility Scripts](#utility-scripts)
@@ -53,42 +52,23 @@ If a tenant does not have the licenses listed above, the report will display a n
 To download ScubaGear:
 
 1. Click [here](https://github.com/cisagov/ScubaGear/releases/latest) to see the latest release.
-2. Click `ScubaGear-v1-0-0.zip` (or latest version) to download the release.
+2. Click `ScubaGear-v1-1-1.zip` (or latest version) to download the release.
 3. Extract the folder in the zip file.
-
-### Installing the Required PowerShell Modules
-> [!NOTE]
->  Only PowerShell 5.1 is currently supported. PowerShell 7 may work, but has not been tested. Full PowerShell 7 support will be added in a future release.
-
-To install the module dependencies, open a new PowerShell 5.1 terminal and navigate to the repository folder.
-
-Then run:
-
-```powershell
-.\SetUp.ps1 # Installs the required modules
-```
-
-### Download the Required OPA executable
-> [!IMPORTANT]
-> The `OPA.ps1` executable download script is called by default when running `SetUp.ps1`. `OPA.ps1` can also be run by itself to download the executable.
-In the event of an unsuccessful download, users can manually download the OPA executable with the following steps:
-1. Go to OPA download site (https://www.openpolicyagent.org/docs/latest/#running-opa)
-2. Check the acceptable OPA version (Currently v0.42.1) for ScubaGear and select the corresponding version on top left of the website
-3. Navigate to the menu on left side of the screen: Introduction - Running OPA - Download OPA
-4. Locate the downloaded file, add the file to the root directory of this repository, open PowerShell, and use the following command to check the downloaded OPA version
-```powershell
-.\opa_windows_amd64.exe version
-```
 
 ### PowerShell Execution Policies
 Starting with release 0.3.0, ScubaGear is signed by a commonly trusted CA. On Windows Servers, the default [execution policy](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/set-executionpolicy?view=powershell-5.1) is `RemoteSigned`, which will allow ScubaGear to run after the publisher (CISA) is agreed to once.
 
-On Windows Clients, the default execution policy is `Restricted`. In this case, `Set-ExecutionPolicy RemoteSigned` should be invoked to permit ScubaGear to run.
+On Windows clients, the default execution policy is `Restricted`. In this case, `Set-ExecutionPolicy RemoteSigned` should be invoked to permit ScubaGear to run.
+
+Windows clients with an execution policy of `Unrestricted` generate a warning about running only trusted scripts when executing ScubaGear, even when the scripts and modules are signed. This is because the files contain an identifier showing they were downloaded from the Internet. These zone identifiers, informally referred to as [Mark of the Web restrictions](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-7.4#manage-signed-and-unsigned-scripts) can be removed by running `Unblock-File` on scripts and modules in the ScubaGear folder. Users should carefully consider use of `Unblock-File` and only run it on files they have vetted and deem trustworthy to execute on their system. See [here](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/unblock-file?view=powershell-5.1) for more information from Microsoft on the `Unblock-File` cmdlet.
 
 ## Usage
 ScubaGear can be invoked interactively or non-interactively. See [Required Permissions](#required-permissions) for the permissions needed to execute the tool in either mode. The interactive authentication mode will prompt the user for credentials via Microsoft's popup windows. Non-interactive mode is for invoking ScubaGear using an Azure AD application service principal and supports running the tool in automated scenarios such as pipelines or scheduled jobs. Examples 1-3 provide examples for running with interactive mode and example 4 provides an example for running in non-interactive mode.
 
 ### Importing the module
+> [!NOTE]
+>  Only PowerShell 5.1 is currently supported. PowerShell 7 may work, but has not been tested. Full PowerShell 7 support will be added in a future release.
+
 ScubaGear currently must be imported into each new PowerShell terminal session to execute.
 To import the module, navigate to the repository folder in a PowerShell 5.1 terminal.
 
@@ -97,19 +77,36 @@ Then run:
 Import-Module -Name .\PowerShell\ScubaGear # Imports the module into your session
 ```
 
-### Example 1: Run an assessment against all products (except PowerPlatform)
+If you receive a warning that _The required supporting PowerShell modules are not installed_, run the following cmdlet:
+
+```powershell
+Initialize-SCuBA # Installs the minimum required dependencies
+```
+> [!IMPORTANT]
+> The `Install-OPA` cmdlet is called by default when running `Initialize-SCuBA`. The `Install-OPA` cmdlet can also be run by itself to download the executable.
+In the event of an unsuccessful download, users can manually download the OPA executable with the following steps:
+1. Go to OPA download site (https://www.openpolicyagent.org/docs/latest/#running-opa)
+2. Check the acceptable OPA version (Currently v0.61.0) for ScubaGear and select the corresponding version on top left of the website
+3. Navigate to the menu on left side of the screen: Introduction - Running OPA - Download OPA
+4. Locate the downloaded file, add the file to your desired location (default is ~\\.scubagear\Tools), open PowerShell, and use the following command to check the downloaded OPA version
+```powershell
+.\opa_windows_amd64.exe version
+```
+### Examples
+
+#### Example 1: Run an assessment against all products (except PowerPlatform) <!-- omit in toc -->
 ```powershell
 Invoke-SCuBA
 ```
-### Example 2: Run an assessment against Azure Active Directory with custom report output location
+#### Example 2: Run an assessment against Azure Active Directory with custom report output location <!-- omit in toc -->
 ```powershell
 Invoke-SCuBA -ProductNames aad -OutPath C:\Users\johndoe\reports
 ```
-### Example 3: Run assessments against multiple products
+#### Example 3: Run assessments against multiple products <!-- omit in toc -->
 ```powershell
 Invoke-SCuBA -ProductNames aad, sharepoint, teams
 ```
-### Example 4: Run assessments non-interactively using an application service principal and authenticating via CertificateThumbprint
+#### Example 4: Run assessments non-interactively using an application service principal and authenticating via CertificateThumbprint <!-- omit in toc -->
 ```powershell
 Invoke-SCuBA -ProductNames * -CertificateThumbprint "<insert-thumbprint>" -AppID "<insert-appid>" -Organization tenant.onmicrosoft.com
 ```
@@ -126,8 +123,8 @@ Get-Help -Name Invoke-SCuBA -Full
   - Per product namespace for values related to that specific product (i.e., Aad, SharePoint)
   - Namespace for each policy item within a product for variables related only to one policy item (i.e., MS.AAD.2.1v1)
   - Use of YAML anchors and aliases following Don't Repeat Yourself (DRY) principle for repeated values and sections
+    If a -ConfigFilePath is specified, default values will be used for parameters that are not added to the config file. These default values are shown in the full config file template to guide the user, but they can be omitted if desired. Other command line parameters can also be used with the -ConfigFilePath. This should reduce the number of config files needed. Examples might be: using `-M365Environment` to override `commercial` config value to `gcc`, switching the tenant being targeted, or supplying credential references so they do not need to be in the config file. Smaller config files can facilitate sharing among admins.  The config file path defaults to the same directory where the script is executed. `ConfigFilePath` accepts both absolute and relative file paths. The file can be used to specify command line parameters and policy-specific parameters used by the Azure Active Directory (AAD) and Defender product assessments. See [See ScubaGear Configuration File Syntax and Examples](#scubagear-configuration-file-syntax-and-examples) and [AAD Conditional Access Policy Exemptions](#aad-conditional-access-policy-exemptions) for more details.
 
-  When using the configuration file option, all non-default parameters must be specified in the file. ScubaGear does not allow other command line options with `-ConfigFilePath`. The file path defaults to the same directory where the script is executed. The file path must point to a valid configuration file. It can be either a relative or absolute path. The file can be used to specify both standard tool parameters as well as custom parameters used by the Azure Active Directory (AAD) product assessment. See [AAD Conditional Access Policy Exemptions](#aad-conditional-access-policy-exemptions) for more details.
 
 - **$LogIn** is a `$true` or `$false` variable that if set to `$true` will prompt the user to provide credentials to establish a connection to the specified M365 products in the **$ProductNames** variable. For most use cases, leave this variable to be `$true`. A connection is established in the current PowerShell terminal session with the first authentication. To run another verification in the same PowerShell session,  set this variable to be `$false` to bypass the need to authenticate again in the same session. Defender will ask for authentication even if this variable is set to `$false`
 
@@ -148,6 +145,103 @@ Get-Help -Name Invoke-SCuBA -Full
 - **$OPAPath** refers to the folder location of the Open Policy Agent (OPA) policy engine executable file. By default the OPA policy engine executable embedded with this project is located in the project's root folder `"./"` and for most cases this value will not need to be modified. To execute the tool using a version of the OPA policy engine located in another folder, customize the variable value with the full path to the folder containing the OPA policy engine executable file.
 
 - **$OutPath** refers to the folder path where the output JSON and the HTML report will be created. Defaults to the same directory where the script is executed. This parameter is only necessary if an alternate report folder path is desired. The folder will be created if it does not exist.
+
+### ScubaGear Configuration File Syntax and Examples
+Most of the `Invoke-SCuBA` cmdlet parameters can be placed into a configuration file with the path specified by the `-ConfigFilePath` parameter. Please note the following parameters are supported only on the command line.
+
+- ConfigFilePath
+- Version
+- DarkMode
+- Quiet
+- MergeJson
+
+Each authentication parameter must be supplied either the command line or in the config file if a non-interactive login is supplied.  An authentication parameter may be present in both, but the command line will always take precedence. The parameters can be split between the config file and the command line.
+
+All of the configuration file examples referenced below are in the [sample-config-files](./sample-config-files) directory and the examples assume a Invoke-SCuBA is run in that directory. Each example shows the sample config file name and a command line example with it.
+
+The authentication parameter values shown below are examples only. The user must supply parameter values appropriate for their tenant and principal.
+
+**Basic Use** : config file `basic_config.yaml`
+Basic use specifies a product name and an M365 environment variable. In this example product is entered a a single value.
+```
+Description: YAML Basic Config file ( one product )
+ProductNames: teams
+M365Environment: commercial
+```
+Command line
+`Invoke-SCuBA -ConfigFilePath minimal_config.yaml`
+
+Command line with override of M365Environment
+```
+Invoke-SCuBA -M365Environment gcc -ConfigFilePath minimal_config.yaml
+```
+
+**Typical Use** : config file `typical_config.yaml`
+Typical use includes multiple products, specified as a list, and an M365 environment variable. Note that additional product values are commented out and will not be included, but are retained in the config file to easily add them back later.
+```
+Description: YAML Typical Config ( multiple products )
+ProductNames:
+- teams
+# - exo
+# - defender
+- aad
+# - sharepoint
+M365Environment: commercial
+```
+Command line with Auth Parameters
+```
+Invoke-SCuBA -Organization abcdef.example.com `
+             -AppID 0123456789abcdef01234566789abcde `
+             -CertificateThumbprint: fedcba9876543210fedcba9876543210fedcba98 `
+             -ConfigFilePath typical_config.yaml
+```
+**Credential Use** : config file `creds_config.yaml`
+Credentials, in the form of a service principal AppID and certificate thumbprint ID can be supplied in the config file. While these credentials alone do not provide access without the associated private key, appropriate protection should be considered if including them in a configuration file.
+```
+Description: YAML Configuration file with credentials ( invalid ones )
+ProductNames:
+- teams
+# - exo
+# - defender
+- aad
+# - sharepoint
+M365Environment: commercial
+Organization: abcdef.example.com
+AppID:  0123456789abcdef01234566789abcde
+CertificateThumbprint: fedcba9876543210fedcba9876543210fedcba98
+```
+Command line with override of product names
+```
+Invoke-SCuBA -ProductNames  defender -ConfigFilePath typical_config.yaml
+```
+
+**Full Use**: config file `full_config.yaml`
+Full use shows all of the global parameters supported by ScubaConfig specified in the config file. Any one of these parameters may be commented out. If not specified or commented out, ScubaConfig will supply the default value instead unless overridden on the command line. This default value does not apply to authentication parameters.
+```
+Description: YAML Configuration file with all parameters
+ProductNames:
+- teams
+- exo
+- defender
+- aad
+- sharepoint
+M365Environment: commercial
+OPAPath: .
+LogIn: true
+DisconnectOnExit: false
+OutPath: .
+OutFolderName: M365BaselineConformance
+OutProviderFileName: ProviderSettingsExport
+OutRegoFileName: TestResults
+OutReportName: BaselineReports
+Organization: abcdef.example.com
+AppID:  0123456789abcdef01234566789abcde
+CertificateThumbprint: fedcba9876543210fedcba9876543210fedcba98
+```
+Command line invocation (no overrides )
+```
+Invoke-SCuBA  -ConfigFilePath full_config.yaml
+```
 
 ### AAD Conditional Access Policy Exemptions
 The ScubaGear `-ConfigFilePath` command line option allows users to define custom variables for use in policy assessments against the AAD baseline. These custom variables are used to exempt specific user and group exclusions from conditional access policy checks that normally would not pass if exclusions are present. These parameters support operational use cases for having backup or "break glass" account exclusions to global user policies without failing best practices. Any exemptions and their risks should be carefully considered and documented as part of an organization's cybersecurity risk management program process and practices.
@@ -241,6 +335,9 @@ The following API permissions are required for Microsoft Graph Powershell:
 - Policy.Read.All
 - RoleManagement.Read.Directory
 - User.Read.All
+- PrivilegedEligibilitySchedule.Read.AzureADGroup
+- PrivilegedAccess.Read.AzureADGroup
+- RoleManagementPolicy.Read.AzureADGroup
 
 ### Service Principal Application Permissions & Setup
 The minimum API permissions & user roles for each product that need to be assigned to a service principal application for ScubaGear app-only authentication are listed in the table below.
@@ -250,6 +347,9 @@ The minimum API permissions & user roles for each product that need to be assign
 | Azure Active Directory   | Directory.Read.All, GroupMember.Read.All,            |                                  |
 |                          | Organization.Read.All, Policy.Read.All,              |                                  |
 |                          | RoleManagement.Read.Directory, User.Read.All         |                                  |
+|                          | PrivilegedEligibilitySchedule.Read.AzureADGroup      |                                  |
+|                          | PrivilegedAccess.Read.AzureADGroup                   |                                  |
+|                          | RoleManagementPolicy.Read.AzureADGroup               |                                  |
 | Defender for Office 365  | Exchange.ManageAsApp                                 | Global Reader                    |
 | Exchange Online          | Exchange.ManageAsApp                                 | Global Reader                    |
 | Power Platform           | [See Power Platform App Registration](#power-platform-app-registration)|                |
@@ -258,7 +358,7 @@ The minimum API permissions & user roles for each product that need to be assign
 
 This [video](https://www.youtube.com/watch?v=GyF8HV_35GA) provides a good tutorial for creating an application manually in the Azure Portal. Augment the API permissions and replace the role assignment instructions in the video with the permissions listed above.
 
-#### Power Platform App Registration
+#### Power Platform App Registration <!-- omit in toc -->
 For Power Platform, the application must be [manually registered to Power Platform via interactive authentication](https://learn.microsoft.com/en-us/power-platform/admin/powershell-create-service-principal#registering-an-admin-management-application) with a administrative account. See [Limitations of Service Principals](https://learn.microsoft.com/en-us/power-platform/admin/powershell-create-service-principal#limitations-of-service-principals) for how applications are treated within Power Platform.
 ```powershell
 Add-PowerAppsAccount -Endpoint prod -TenantID $tenantId # use -Endpoint usgov for gcc tenants
@@ -280,9 +380,11 @@ The tool employs a three-step process:
 
 ## Repository Organization
 - `PowerShell` contains the code used to export the configuration settings from the M365 tenant and orchestrate the entire process from export through evaluation to report. The main PowerShell module manifest `ScubaGear.psd1` is located in the `PowerShell/ScubaGear` folder.
-- `Rego` holds the `.rego` files. Each Rego file audits against the desired state for each product, per the SCuBA M365 secure configuration baseline documents.
+- `Rego`, located within the PowerShell/ScubaGear folder, holds the `.rego` files. The Open Policy Agent executable uses each Rego file to audit the desired state for each product, per the SCuBA M365 secure configuration baseline documents.
 - `baselines` contains the SCuBA M365 secure configuration baseline documents in Markdown format.
 - `Testing` contains code that is used during the development process to test ScubaGear's PowerShell and Rego code.
+- `sample-report` contains sample JSON and HTML report output of the ScubaGear tool. Right click on the `BaselineReports.html` to open the file in a browser of your choice to view the sample report.
+- `utils` contains an assorted array of helper scripts for ScubaGear usage and development. See [Utility Scripts](#utility-scripts) for detailed descriptions of scripts that can help with troubleshooting.
 
 ## Troubleshooting
 
@@ -307,7 +409,7 @@ https://docs.microsoft.com/en-us/powershell/exchange/exchange-online-powershell-
 Create Powershell Session is failed using OAuth
 ```
 
-If you see this error message it means that you are running a version of the ExchangeOnlineManagement PowerShell module less than Version 3.2. The automation relies on the Microsoft Security & Compliance PowerShell environment for Defender information. Security & Compliance PowerShell connections, unlike other services used by the ExchangeOnlineManagement module, once required basic authentication to be enabled. As of June 2023, Microsoft has [deprecated Remote PowerShell for Exchange Online and Security & Compliance PowerShell](https://techcommunity.microsoft.com/t5/exchange-team-blog/announcing-deprecation-of-remote-powershell-rps-protocol-in/ba-p/3695597). To resolve this error, you should run the `.\SetUp.ps1` script to install the latest ExchangeOnlineManagement module version.
+If you see this error message it means that you are running a version of the ExchangeOnlineManagement PowerShell module less than Version 3.2. The automation relies on the Microsoft Security & Compliance PowerShell environment for Defender information. Security & Compliance PowerShell connections, unlike other services used by the ExchangeOnlineManagement module, once required basic authentication to be enabled. As of June 2023, Microsoft has [deprecated Remote PowerShell for Exchange Online and Security & Compliance PowerShell](https://techcommunity.microsoft.com/t5/exchange-team-blog/announcing-deprecation-of-remote-powershell-rps-protocol-in/ba-p/3695597). To resolve this error, you should run the `Initialize-SCuBA` cmdlet to install the latest ExchangeOnlineManagement module version.
 
 ### Exchange Online maximum connections error
 If when running the tool against Exchange Online, you see the error below in the Powershell window, follow the instructions in this section.
@@ -355,7 +457,7 @@ Invoke-ProviderList : Error with the PowerPlatform Provider. See the exception m
 
 ### Microsoft Graph Errors
 
-#### Infinite AAD Sign in Loop
+#### Infinite AAD Sign in Loop <!-- omit in toc -->
 While running the tool, AAD sign in prompts sometimes get stuck in a loop. This is likely an issue with the connection to Microsoft Graph.
 
 To fix the loop, run:
@@ -364,7 +466,7 @@ Disconnect-MgGraph
 ```
 Then run the tool again.
 
-#### Error `Connect-MgGraph : Key not valid for use in specified state.`
+#### Error `Connect-MgGraph : Key not valid for use in specified state.` <!-- omit in toc -->
 
 This is due to a [bug](https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/554) in the Microsoft Authentication Library.  The workaround is to delete broken configuration information by running this command (replace `{username}` with your username):
 
@@ -373,9 +475,9 @@ rm -r C:\Users\{username}\.graph
 ```
 After deleting the `.graph` folder in your home directory, re-run the tool and the error should disappear.
 
-#### Error `Could not load file or assembly 'Microsoft.Graph.Authentication'`
+#### Error `Could not load file or assembly 'Microsoft.Graph.Authentication'` <!-- omit in toc -->
 
-This indicates that the authentication module is at a version level that conflicts with the MS Graph modules used by the tool. Follow the instructions in the Installation section and execute the Setup script again. This will ensure that the module versions get synchronized with dependencies and then execute the tool again.
+This indicates that the authentication module is at a version level that conflicts with the MS Graph modules used by the tool. Follow the instructions in the Installation section and execute the 'Initialize-SCuBA' cmdlet again. This will ensure that the module versions get synchronized with dependencies and then execute the tool again.
 
 
 ### Running the Tool Behind Some Proxies
@@ -388,7 +490,7 @@ $Wcl.Proxy.Credentials=[System.Net.CredentialCache]::DefaultNetworkCredentials
 ### Utility Scripts
 The ScubaGear repository includes several utility scripts to help with troubleshooting and recovery from error conditions in the `utils` folder. These helper scripts are designed to assist developers and users when running into errors with the ScubaGear tool or local system environment. See the sections below for details on each script.
 
-#### ScubaGear Support
+#### ScubaGear Support <!-- omit in toc -->
 If a user receives errors and needs additional support diagnosing issues, the `ScubaGearSupport.ps1` script can be run to gather information about their system environment and previous tool output.
 The script gathers this information into a single ZIP formatted archive to allow for easy sharing with developers or other support staff to assist in troubleshooting. Since the script does gather report output, do keep in mind that the resulting archive may contain details about the associated M365 environment and its settings.
 
@@ -419,8 +521,8 @@ Data gathered by the script includes:
   * JSON-formatted M365 product configuration extracts
   * JSON and CSV-formatted M365 baseline test results
 
-#### Removing installed modules
-ScubaGear requires a number of PowerShell modules to function. A user or developer, however, may wish to remove these PowerShell modules for testing or for cleanup after ScubaGear has been run.  The `UninstallModules.ps1` script will remove the latest version of the modules required by ScubaGear and installed by the associated `Setup.ps1` script. The script does not take any options and can be as follows:
+#### Removing installed modules <!-- omit in toc -->
+ScubaGear requires a number of PowerShell modules to function. A user or developer, however, may wish to remove these PowerShell modules for testing or for cleanup after ScubaGear has been run.  The `UninstallModules.ps1` script will remove the latest version of the modules required by ScubaGear and installed by the associated `Initialize-SCuBA` cmdlet. The script does not take any options and can be as follows:
 
 ```powershell
 .\UninstallModules.ps1

@@ -12,7 +12,7 @@
 RootModule = './ScubaGear.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0'
+ModuleVersion = '1.1.1'
 
 # Supported PSEditions
 CompatiblePSEditions = 'Desktop'
@@ -27,7 +27,7 @@ Author = 'CISA'
 CompanyName = 'Cybersecurity and Infrastructure Security Agency'
 
 # Copyright statement for this module
-Copyright = '(c) 2023 CISA. All rights reserved.'
+Copyright = '(c) 2022-2024 CISA. All rights reserved.'
 
 # Description of the functionality provided by this module
 Description = @"
@@ -72,13 +72,19 @@ ScriptsToProcess = @(
 # FormatsToProcess = @()
 
 # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
-# NestedModules = @()
+NestedModules = @('Modules\Support\Support.psm1')
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
 FunctionsToExport = @(
     'Invoke-SCuBA',
-    'Invoke-RunCached'
-    'Disconnect-SCuBATenant'
+    'Invoke-RunCached',
+    'Disconnect-SCuBATenant',
+    'Copy-ScubaBaselineDocument',
+    'Install-OPA',
+    'Initialize-SCuBA',
+    'Debug-SCuBA',
+    'Copy-ScubaSampleReport',
+    'Copy-ScubaSampleConfigFile'
 )
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.

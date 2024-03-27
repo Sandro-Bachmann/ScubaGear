@@ -51,7 +51,7 @@ function Export-PowerPlatformProvider {
             }
         }
         $Uri = "https://login.microsoftonline$($TLD)/$($TenantDomain)/.well-known/openid-configuration"
-        $TenantIdConfig = (Invoke-WebRequest -Uri $Uri  -ErrorAction "Stop").Content
+        $TenantIdConfig = (Invoke-WebRequest -Uri $Uri -UseBasicParsing -ErrorAction "Stop").Content
     }
     catch {
         $EnvCheckWarning = @"
@@ -203,10 +203,6 @@ $($_)
     "powerplatform_unsuccessful_commands": $PowerPlatformUnSuccessfulCommands,
 "@
 
-    # We need to remove the backslash characters from the
-    # json, otherwise rego gets mad.
-    $json = $json.replace("\`"", "'")
-    $json = $json.replace("\", "")
     $json = $json -replace "[^\x00-\x7f]","" # remove all characters that are not utf-8
     $json
 }
