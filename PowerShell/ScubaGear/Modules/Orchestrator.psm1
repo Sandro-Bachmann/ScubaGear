@@ -550,7 +550,7 @@ function Invoke-ProviderList {
                     $RetVal = ""
                     switch ($Product) {
                         "aad" {
-                            $RetVal = Export-AADProvider | Select-Object -Last 1
+                            $RetVal = Export-AADProvider -M365Environment $M365Environment | Select-Object -Last 1
                         }
                         "exo" {
                             $RetVal = Export-EXOProvider | Select-Object -Last 1
@@ -1005,13 +1005,18 @@ function Invoke-ReportCreation {
                 $LinkPath = "$($IndividualReportFolderName)/$($BaselineName)Report.html"
                 $LinkClassName = '"individual_reports"' # uses no escape characters
                 $Link = "<a class=$($LinkClassName) href='$($LinkPath)'>$($FullName)</a>"
-
-                $PassesSummary = "<div class='summary pass'>$($Report.Passes) tests passed</div>"
+                $PassesSummary = "<div class='summary'></div>"
                 $WarningsSummary = "<div class='summary'></div>"
                 $FailuresSummary = "<div class='summary'></div>"
                 $BaselineURL = "<a href= `"https://github.com/cisagov/ScubaGear/blob/v$($ModuleVersion)/baselines`" target=`"_blank`"><h3 style=`"width: 100px;`">Baseline Documents</h3></a>"
                 $ManualSummary = "<div class='summary'></div>"
-                $ErrorSummary = "<div class='summary'></div>"
+                $OmitSummary = "<div class='summary'></div>"
+                $ErrorSummary = ""
+
+                if ($Report.Passes -gt 0) {
+                    $Noun = Pluralize -SingularNoun "pass" -PluralNoun "passes" -Count $Report.Passes
+                    $PassesSummary = "<div class='summary pass'>$($Report.Passes) $($Noun)</div>"
+                }
 
                 if ($Report.Warnings -gt 0) {
                     $Noun = Pluralize -SingularNoun "warning" -PluralNoun "warnings" -Count $Report.Warnings
@@ -1019,13 +1024,17 @@ function Invoke-ReportCreation {
                 }
 
                 if ($Report.Failures -gt 0) {
-                    $Noun = Pluralize -SingularNoun "test" -PluralNoun "tests" -Count $Report.Failures
-                    $FailuresSummary = "<div class='summary failure'>$($Report.Failures) $($Noun) failed</div>"
+                    $Noun = Pluralize -SingularNoun "failure" -PluralNoun "failures" -Count $Report.Failures
+                    $FailuresSummary = "<div class='summary failure'>$($Report.Failures) $($Noun)</div>"
                 }
 
                 if ($Report.Manual -gt 0) {
                     $Noun = Pluralize -SingularNoun "check" -PluralNoun "checks" -Count $Report.Manual
-                    $ManualSummary = "<div class='summary manual'>$($Report.Manual) manual $($Noun) needed</div>"
+                    $ManualSummary = "<div class='summary manual'>$($Report.Manual) manual $($Noun)</div>"
+                }
+
+                if ($Report.Omits -gt 0) {
+                    $OmitSummary = "<div class='summary manual'>$($Report.Omits) omitted</div>"
                 }
 
                 if ($Report.Errors -gt 0) {
@@ -1035,7 +1044,7 @@ function Invoke-ReportCreation {
 
                 $Fragment += [pscustomobject]@{
                 "Baseline Conformance Reports" = $Link;
-                "Details" = "$($PassesSummary) $($WarningsSummary) $($FailuresSummary) $($ManualSummary) $($ErrorSummary)"
+                "Details" = "$($PassesSummary) $($WarningsSummary) $($FailuresSummary) $($ManualSummary) $($OmitSummary) $($ErrorSummary)"
                 }
             }
             $TenantMetaData += [pscustomobject]@{
@@ -1322,7 +1331,7 @@ function Remove-Resources {
     Remove-Module "Connection" -ErrorAction "SilentlyContinue"
 }
 
-function Invoke-RunCached {
+function Invoke-SCuBACached {
     <#
     .SYNOPSIS
     Specially execute the SCuBAGear tool security baselines for specified M365 products.
@@ -1404,19 +1413,19 @@ function Invoke-RunCached {
     .Parameter DarkMode
     Set switch to enable report dark mode by default.
     .Example
-    Invoke-RunCached
+    Invoke-SCuBACached
     Run an assessment against by default a commercial M365 Tenant against the
     Azure Active Directory, Exchange Online, Microsoft Defender, One Drive, SharePoint Online, and Microsoft Teams
     security baselines. The output will stored in the current directory in a folder called M365BaselineConformaance_*.
     .Example
-    Invoke-RunCached -Version
+    Invoke-SCuBACached -Version
     This example returns the version of SCuBAGear.
     .Example
-    Invoke-RunCached -ProductNames aad, defender -OPAPath . -OutPath .
+    Invoke-SCuBACached -ProductNames aad, defender -OPAPath . -OutPath .
     The example will run the tool against the Azure Active Directory, and Defender security
     baselines.
     .Example
-    Invoke-RunCached -ProductNames * -M365Environment dod -OPAPath . -OutPath .
+    Invoke-SCuBACached -ProductNames * -M365Environment dod -OPAPath . -OutPath .
     This example will run the tool against all available security baselines with the
     'dod' teams endpoint.
     .Example
@@ -1617,5 +1626,5 @@ function Invoke-RunCached {
 
 Export-ModuleMember -Function @(
     'Invoke-SCuBA',
-    'Invoke-RunCached'
+    'Invoke-SCuBACached'
 )

@@ -6,7 +6,6 @@ import data.utils.report.ReportDetailsBoolean
 import data.utils.report.ReportDetailsString
 import data.utils.key.IsEmptyContainer
 import data.utils.key.Contains
-import data.utils.key.Count
 import data.utils.key.FilterArray
 import data.utils.key.ConvertToSetWithKey
 import data.utils.key.ConvertToSet
@@ -16,7 +15,7 @@ import data.utils.aad.ReportDetailsArrayLicenseWarning
 import data.utils.aad.UserExclusionsFullyExempt
 import data.utils.aad.GroupExclusionsFullyExempt
 import data.utils.aad.Aad2P2Licenses
-import data.utils.aad.HasAcceptableMFA
+import data.utils.aad.IsPhishingResistantMFA
 import data.utils.aad.PolicyConditionsMatch
 import data.utils.aad.CAPLINK
 import data.utils.aad.DomainReportDetails
@@ -189,7 +188,7 @@ PhishingResistantMFAPolicies contains CAPolicy.DisplayName if {
     GroupExclusionsFullyExempt(CAPolicy, "MS.AAD.3.1v1") == true
     UserExclusionsFullyExempt(CAPolicy, "MS.AAD.3.1v1") == true
 
-    HasAcceptableMFA(CAPolicy) == true
+    IsPhishingResistantMFA(CAPolicy) == true
 }
 
 # Pass if at least 1 policy meets all conditions
@@ -211,14 +210,11 @@ tests contains {
 #--
 
 # Save all policy names if PhishingResistantMFAPolicies exist
-AlternativeMFA contains CAPolicy.DisplayName if {
-    some CAPolicy in input.conditional_access_policies
-    Count(PhishingResistantMFAPolicies) > 0
-}
+AllMFA := NonSpecificMFAPolicies | PhishingResistantMFAPolicies
 
 # If policy matches basic conditions, special conditions,
 # & all exclusions are intentional, save the policy name
-AlternativeMFA contains CAPolicy.DisplayName if {
+NonSpecificMFAPolicies contains CAPolicy.DisplayName if {
     some CAPolicy in input.conditional_access_policies
 
     # Match all simple conditions
@@ -235,12 +231,12 @@ tests contains {
     "PolicyId": "MS.AAD.3.2v1",
     "Criticality": "Shall",
     "Commandlet": ["Get-MgBetaIdentityConditionalAccessPolicy"],
-    "ActualValue": AlternativeMFA,
-    "ReportDetails": concat(". ", [ReportFullDetailsArray(AlternativeMFA, DescriptionString), CAPLINK]),
+    "ActualValue": AllMFA,
+    "ReportDetails": concat(". ", [ReportFullDetailsArray(AllMFA, DescriptionString), CAPLINK]),
     "RequirementMet": Status
 } if {
     DescriptionString := "conditional access policy(s) found that meet(s) all requirements"
-    Status := count(AlternativeMFA) > 0
+    Status := count(AllMFA) > 0
 }
 #--
 
@@ -402,7 +398,7 @@ tests contains {
 # privliged roles are included in policy & not excluded.
 # If policy matches basic conditions, special conditions,
 # & all exclusions are intentional, save the policy name
-PhishingResistantMFA contains CAPolicy.DisplayName if {
+PhishingResistantMFAPrivilegedRoles contains CAPolicy.DisplayName if {
     some CAPolicy in input.conditional_access_policies
 
     CAPolicy.State == "enabled"
@@ -422,7 +418,7 @@ PhishingResistantMFA contains CAPolicy.DisplayName if {
     UserExclusionsFullyExempt(CAPolicy, "MS.AAD.3.6v1") == true
 
     # Policy has only acceptable MFA
-    HasAcceptableMFA(CAPolicy) == true
+    IsPhishingResistantMFA(CAPolicy) == true
 }
 
 # Pass if at least 1 policy meets all conditions
@@ -430,12 +426,12 @@ tests contains {
     "PolicyId": "MS.AAD.3.6v1",
     "Criticality": "Shall",
     "Commandlet": ["Get-MgBetaIdentityConditionalAccessPolicy"],
-    "ActualValue": PhishingResistantMFA,
-    "ReportDetails": concat(". ", [ReportFullDetailsArray(PhishingResistantMFA, DescriptionString), CAPLINK]),
+    "ActualValue": PhishingResistantMFAPrivilegedRoles,
+    "ReportDetails": concat(". ", [ReportFullDetailsArray(PhishingResistantMFAPrivilegedRoles, DescriptionString), CAPLINK]),
     "RequirementMet": Status
 } if {
     DescriptionString := "conditional access policy(s) found that meet(s) all requirements"
-    Status := count(PhishingResistantMFA) > 0
+    Status := count(PhishingResistantMFAPrivilegedRoles) > 0
 }
 #--
 
@@ -448,15 +444,16 @@ tests contains {
 ManagedDeviceAuth contains CAPolicy.DisplayName if {
     some CAPolicy in input.conditional_access_policies
 
-    Contains(CAPolicy.Conditions.Users.IncludeUsers, "All") == true
-    Contains(CAPolicy.Conditions.Applications.IncludeApplications, "All") == true
-    CAPolicy.State == "enabled"
+    PolicyConditionsMatch(CAPolicy) == true
 
-    Conditions := [
-        "compliantDevice" in CAPolicy.GrantControls.BuiltInControls,
-        "domainJoinedDevice" in CAPolicy.GrantControls.BuiltInControls,
-    ]
-    count(FilterArray(Conditions, true)) > 0
+    "compliantDevice" in CAPolicy.GrantControls.BuiltInControls
+    "domainJoinedDevice" in CAPolicy.GrantControls.BuiltInControls
+    count(CAPolicy.GrantControls.BuiltInControls) == 2
+    CAPolicy.GrantControls.Operator == "OR"
+
+    # Only match policies with user and group exclusions if all exempted
+    UserExclusionsFullyExempt(CAPolicy, "MS.AAD.3.7v1") == true
+    GroupExclusionsFullyExempt(CAPolicy, "MS.AAD.3.7v1") == true
 }
 
 # Pass if at least 1 policy meets all conditions
@@ -724,27 +721,51 @@ UserPasswordsSetToNotExpire contains Domain.Id if {
     some Domain in input.domain_settings
     Domain.PasswordValidityPeriodInDays == INT_MAX
     Domain.IsVerified == true
+
+    # Ignore federated domains
+    Domain.AuthenticationType == "Managed"
 }
 
 UserPasswordsSetToExpire contains Domain.Id if {
     some Domain in input.domain_settings
     Domain.PasswordValidityPeriodInDays != INT_MAX
     Domain.IsVerified == true
+
+    # Ignore federated domains
+    Domain.AuthenticationType == "Managed"
+}
+
+FederatedDomains contains Domain.Id if {
+    some Domain in input.domain_settings
+    Domain.IsVerified == true
+    Domain.AuthenticationType == "Federated"
 }
 
 tests contains {
     "PolicyId": "MS.AAD.6.1v1",
     "Criticality": "Shall",
     "Commandlet": [ "Get-MgBetaDomain" ],
-    "ActualValue": { UserPasswordsSetToExpire, UserPasswordsSetToNotExpire },
-    "ReportDetails": DomainReportDetails(Status, UserPasswordsSetToExpire, DescriptionString),
+    # Track invalid/valid/federated domains for use in TestResults.json
+    "ActualValue": { 
+        "invalid_domains": UserPasswordsSetToExpire, 
+        "valid_domains": UserPasswordsSetToNotExpire,
+        "federated_domains": FederatedDomains
+    },
+    "ReportDetails": DomainReportDetails(Status, Metadata),
     "RequirementMet": Status
 } if {
-    # For the rule to pass, the user passwords for all domains shall not expire
+    # For the rule to pass:
+    # User passwords for all domains shall not expire
     # Then check if at least 1 or more domains with user passwords set to expire exist
-    DescriptionString := "domain(s) failed"
-    Conditions := [count(UserPasswordsSetToExpire) == 0, count(UserPasswordsSetToNotExpire) > 0]
-    Status := count(FilterArray(Conditions, false)) == 0
+    Conditions := [
+        count(UserPasswordsSetToExpire) == 0, 
+        count(UserPasswordsSetToNotExpire) > 0
+    ]
+    Status := count(FilterArray(Conditions, true)) == 2
+    Metadata := {
+        "UserPasswordsSetToExpire": UserPasswordsSetToExpire,
+        "FederatedDomains": FederatedDomains
+    }
 }
 #--
 
@@ -763,7 +784,7 @@ GlobalAdmins contains User.DisplayName if {
     "Global Administrator" in User.roles
 }
 
-#Set conditions under which this policy will pass
+# Set conditions under which this policy will pass
 default IsGlobalAdminCountGood := false
 IsGlobalAdminCountGood := true if {
     count(GlobalAdmins) <= 8
@@ -860,7 +881,7 @@ default PrivilegedRoleExclusions(_, _) := false
 # for users & groups. If there are users with permenant assignment
 # return true if all users + groups are in the config.
 PrivilegedRoleExclusions(PrivilegedRole, PolicyID) := true if {
-    PrivilegedRoleAssignedPrincipals := {x.PrincipalId | some x in PrivilegedRole.Assignments; x.EndDateTime == null}
+    PrivilegedRoleAssignedPrincipals := {x.principalId | some x in PrivilegedRole.Assignments; x.endDateTime == null}
 
     AllowedPrivilegedRoleUsers := {y | some y in input.scuba_config.Aad[PolicyID].RoleExclusions.Users; y != null}
     AllowedPrivilegedRoleGroups := {y | some y in input.scuba_config.Aad[PolicyID].RoleExclusions.Groups; y != null}
@@ -871,7 +892,7 @@ PrivilegedRoleExclusions(PrivilegedRole, PolicyID) := true if {
 
 # if no users with permenant assignment & config empty, return true
 PrivilegedRoleExclusions(PrivilegedRole, PolicyID) := true if {
-    count({x.PrincipalId | some x in PrivilegedRole.Assignments; x.EndDateTime == null}) > 0
+    count({x.principalId | some x in PrivilegedRole.Assignments; x.endDateTime == null}) > 0
     count({y | some y in input.scuba_config.Aad[PolicyID].RoleExclusions.Users; y != null}) == 0
     count({y | some y in input.scuba_config.Aad[PolicyID].RoleExclusions.Groups; y != null}) == 0
 }
@@ -906,7 +927,7 @@ tests contains {
 # Get all privileged roles that do not have a start date
 RolesAssignedOutsidePim contains Role.DisplayName if {
     some Role in input.privileged_roles
-    NoStartAssignments := {is_null(X.StartDateTime) | some X in Role.Assignments}
+    NoStartAssignments := {is_null(X.startDateTime) | some X in Role.Assignments}
 
     count(FilterArray(NoStartAssignments, true)) > 0
 }

@@ -44,6 +44,13 @@ NotCheckedDetails(PolicyId) := sprintf(
     [PolicyLink(PolicyId)]
 )
 
+# Use this when you need to make a policy not-implemented because of deprecation
+NotCheckedDeprecation :=
+    concat(" ", [
+    "This configuration setting has been deprecated and we are in the process of removing it from the baseline."
+    ])
+
+
 # Note: Reason must include %v to reference policy in document.
 CheckedSkippedDetails(PolicyId, Reason) := sprintf(
     concat(" ", [Reason]), [PolicyLink(PolicyId)]
@@ -53,12 +60,12 @@ CheckedSkippedDetails(PolicyId, Reason) := sprintf(
 DefenderMirrorDetails(PolicyId) := sprintf(
     concat(" ", [
     "A custom product can be used to fulfill this policy requirement.",
-    "If a custom product is used, a 3rd party assessment tool or manually review is needed to ensure compliance.",
+    "If a custom product is used, a 3rd party assessment tool or manual review is needed to ensure compliance.",
     "If you are using Defender for Office 365 to implement this policy,",
-    "ensure that when running ScubaGear defender is in the ProductNames parameter.",
-    "Then, manually review the corresponding Defender for Office 365 policy that fulfills",
-    "the requirements of this policy.",
-    "See %v for instructions on manual check."
+    "ensure when running ScubaGear that 'defender' is an argument to the -ProductNames parameter.",
+    "Then, review the corresponding Defender policy that fulfills",
+    "the requirements of this policy on the Defender ScubaGear HTML report.",
+    "See the %v for instructions on a manual check."
     ]),
     [PolicyLink(PolicyId)]
 )

@@ -1,6 +1,6 @@
 using module '..\ScubaConfig\ScubaConfig.psm1'
 
-function Copy-ScubaBaselineDocument {
+function Copy-SCuBABaselineDocument {
     <#
     .SYNOPSIS
     Copy security baselines documents to a user specified location.
@@ -9,7 +9,7 @@ function Copy-ScubaBaselineDocument {
     .Parameter Destination
     Where to copy the baselines. Defaults to <user home>\ScubaGear\baselines
     .Example
-    Copy-ScubaBaselineDocument
+    Copy-SCuBABaselineDocument
     .Functionality
     Public
     .NOTES
@@ -94,6 +94,7 @@ function Initialize-SCuBA {
         $ScubaParentDirectory = $env:USERPROFILE
     )
 
+    Write-Output 'Initializing ScubaGear...'
     # Set preferences for writing messages
     $PreferenceStack = New-Object -TypeName System.Collections.Stack
     $PreferenceStack.Push($DebugPreference)
@@ -114,6 +115,13 @@ function Initialize-SCuBA {
     $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
     # Need to determine where module is so we can get required versions info
+    $ParentPath = Split-Path -parent $PSScriptRoot
+    $ModulePath = Split-Path -parent $ParentPath
+    # Removing the import below causes issues with testing, let it be.
+    # Import module magic may be helping by:
+    #   * restricting the import so only that only function is exported
+    #   * imported function takes precedence over imported modules w/ function
+    Import-Module $ModulePath -Function Initialize-Scuba
     $ModuleParentDir = Split-Path -Path (Get-Module ScubaGear).Path -Parent
     try {
         ($RequiredModulesPath = Join-Path -Path $ModuleParentDir -ChildPath 'RequiredVersions.ps1') *> $null
@@ -185,7 +193,7 @@ function Initialize-SCuBA {
     }
     else {
         try {
-            Install-OPA -OPAExe $OPAExe -ExpectedVersion $ExpectedVersion -OperatingSystem $OperatingSystem -ScubaParentDirectory $ScubaParentDirectory
+            Install-OPAforSCuBA -OPAExe $OPAExe -ExpectedVersion $ExpectedVersion -OperatingSystem $OperatingSystem -ScubaParentDirectory $ScubaParentDirectory
         }
         catch {
             $Error[0] | Format-List -Property * -Force | Out-Host
@@ -201,7 +209,7 @@ function Initialize-SCuBA {
     $DebugPreference = $PreferenceStack.Pop()
 }
 
-function Install-OPA {
+function Install-OPAforSCuBA {
     <#
     .SYNOPSIS
         This script installs the required OPA executable used by the
@@ -209,7 +217,7 @@ function Install-OPA {
     .DESCRIPTION
         Installs the OPA executable required to support SCuBAGear.
     .EXAMPLE
-        Install-OPA
+        Install-OPAforSCuBA
     #>
     [CmdletBinding()]
     param(
@@ -237,7 +245,8 @@ function Install-OPA {
 
     # Constants
     $ACCEPTABLEVERSIONS = '0.59.0', '0.60.0', '0.61.0',
-    '0.62.1', '0.63.0', [ScubaConfig]::ScubaDefault('DefaultOPAVersion') # End Versions
+    '0.62.1', '0.63.0', '0.64.1',
+    '0.65.0', [ScubaConfig]::ScubaDefault('DefaultOPAVersion') # End Versions
     $FILENAME = @{ Windows = "opa_windows_amd64.exe"; MacOS = "opa_darwin_amd64"; Linux = "opa_linux_amd64_static"}
 
     # Set prefernces for writing messages
@@ -546,7 +555,7 @@ function Debug-SCuBA {
     $DebugPreference = $PreferenceStack.Pop()
 }
 
-function Copy-ScubaSampleReport {
+function Copy-SCuBASampleReport {
     <#
     .SYNOPSIS
     Copy sample reports to user defined location.
@@ -555,7 +564,7 @@ function Copy-ScubaSampleReport {
     .Parameter Destination
     Where to copy the samples. Defaults to <user home>\ScubaGear\samples\reports
     .Example
-    Copy-ScubaSampleReport
+    Copy-SCuBASampleReport
     .Functionality
     Public
     .NOTES
@@ -576,7 +585,7 @@ function Copy-ScubaSampleReport {
     Copy-ScubaModuleFile -SourceDirectory $SourceDirectory -DestinationDirectory $DestinationDirectory -Force:$Force
 }
 
-function Copy-ScubaSampleConfigFile {
+function Copy-SCuBASampleConfigFile {
     <#
     .SYNOPSIS
     Copy sample configuration files to user defined location.
@@ -585,7 +594,7 @@ function Copy-ScubaSampleConfigFile {
     .Parameter Destination
     Where to copy the samples. Defaults to <user home>\ScubaGear\samples\config-files
     .Example
-    Copy-ScubaSampleConfigFile
+    Copy-SCuBASampleConfigFile
     .Functionality
     Public
     .NOTES
@@ -649,7 +658,7 @@ function Copy-ScubaModuleFile {
     }
 }
 
-function New-Config {
+function New-SCuBAConfig {
     <#
     .SYNOPSIS
     Generate a config file for the ScubaGear tool
@@ -723,6 +732,9 @@ function New-Config {
     parameters. Additional parameters and variables not available on the
     command line can also be included in the file that will be provided to the
     tool for use in specific tests.
+    .Parameter OmitPolicy
+    A comma-separated list of policies to exclude from the ScubaGear report, e.g., MS.DEFENDER.1.1v1.
+    Note that the rationales will need to be manually added to the resulting config file.
     .Functionality
     Public
     #>
@@ -807,7 +819,12 @@ function New-Config {
         [Parameter(Mandatory = $false)]
         [ValidateNotNullOrEmpty()]
         [string]
-        $ConfigLocation = "./"
+        $ConfigLocation = "./",
+
+        [Parameter(Mandatory = $false)]
+        [ValidateNotNullOrEmpty()]
+        [string[]]
+        $OmitPolicy = @()
     )
 
     $Config = New-Object ([System.Collections.specialized.OrderedDictionary])
@@ -818,6 +835,12 @@ function New-Config {
             #$config[$_] = $val
             $Config.add($_, $Val)
         }
+    }
+
+    if ($config.Contains("OmitPolicy")) {
+        # We don't want to immediately save this parameter to the config, as it's not in the right
+        # format yet.
+        $config.Remove("OmitPolicy")
     }
 
     $CapExclusionNamespace = @(
@@ -844,6 +867,46 @@ function New-Config {
 
     $PartnerDomainImpersonationProtectionNamespace = "MS.DEFENDER.2.3v1"
 
+    $OmissionNamespace = "OmitPolicy"
+
+    # List to track which policies the user specified in $OmitPolicies are properly formatted
+    $OmitPolicyValidated = @()
+
+    # Hashmap to structure the ignored policies template
+    $config[$OmissionNamespace] = @{}
+
+    foreach ($Policy in $OmitPolicy) {
+        if (-not ($Policy -match "^ms\.[a-z]+\.[0-9]+\.[0-9]+v[0-9]+$")) {
+            # Note that -match is a case insensitive match
+            # Note that the regex does not validate the product name, this will be done
+            # later
+            $Warning = "The policy, $Policy, in the OmitPolicy parameter, is not a valid "
+            $Warning += "policy ID. Expected format 'MS.[PRODUCT].[GROUP].[NUMBER]v[VERSION]', "
+            $Warning += "e.g., 'MS.DEFENDER.1.1v1'. Skipping."
+            Write-Warning $Warning
+            Continue
+        }
+        $Product = ($Policy -Split "\.")[1]
+        # Here's where the product name is validated
+        if (-not ($ProductNames -Contains $Product)) {
+            $Warning = "The policy, $Policy, in the OmitPolicy parameter, is not encompassed by "
+            $Warning += "the products specified in the ProductName parameter. Skipping."
+            Write-Warning $Warning
+            Continue
+        }
+        # Ensure the policy ID is properly capitalized (i.e., all caps except for the "v1" portion)
+        $PolicyCapitalized = $Policy.Substring(0, $Policy.Length-2).ToUpper() + $Policy.SubString($Policy.Length-2)
+        $OmitPolicyValidated += $PolicyCapitalized
+        $config[$OmissionNamespace][$PolicyCapitalized] = @{
+            "Rationale" = "";
+            "Expiration" = "";
+        }
+    }
+
+    $Warning = "The following policies have been configured for omission: $($OmitPolicyValidated -Join ', '). "
+    $Warning += "Note that as the New-Config function does not support providing the rationale for omission via "
+    $Warning += "the commandline, you will need to open the resulting config file and manually enter the rationales."
+    Write-Warning $Warning
 
     $AadTemplate = New-Object ([System.Collections.specialized.OrderedDictionary])
     $AadCapExclusions = New-Object ([System.Collections.specialized.OrderedDictionary])
@@ -902,11 +965,11 @@ function New-Config {
 }
 
 Export-ModuleMember -Function @(
-    'Copy-ScubaBaselineDocument',
-    'Install-OPA',
+    'Copy-SCuBABaselineDocument',
+    'Install-OPAforSCuBA',
     'Initialize-SCuBA',
     'Debug-SCuBA',
-    'Copy-ScubaSampleReport',
-    'Copy-ScubaSampleConfigFile',
-    'New-Config'
+    'Copy-SCuBASampleReport',
+    'Copy-SCuBASampleConfigFile',
+    'New-SCuBAConfig'
 )

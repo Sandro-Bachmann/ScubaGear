@@ -1,7 +1,7 @@
 ProductName: aad
 TestPlan:
   - PolicyId: MS.AAD.2.1v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.2.1v1 Non-Compliant case - low risk users are blocked
         Preconditions:
@@ -53,7 +53,7 @@ TestPlan:
         ExpectedResult: true
 
   - PolicyId: MS.AAD.2.3v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.2.3v1 Non-Compliant case - low risk sign ins are blocked
         Preconditions:
@@ -105,10 +105,10 @@ TestPlan:
         ExpectedResult: true
 
   - PolicyId: MS.AAD.7.4v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.7.4v1 Non-Compliant case - User with permanent active assignment
-        #### This test case guarantees that at least one privileged role assignment has an EndDateTime of null
+        #### This test case guarantees that at least one privileged role assignment has an endDateTime of null
         Preconditions:
           - Command: UpdateProviderExport
             Splat:
@@ -117,13 +117,13 @@ TestPlan:
                   - DisplayName: Global Administrator
                     RoleTemplateId: "62e90394-69f5-4237-9190-012177145e10"
                     Assignments:
-                      - EndDateTime: "/Date(1672947244397)/"
-                        PrincipalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
+                      - endDateTime: "/Date(1672947244397)/"
+                        principalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
                   - DisplayName: User Administrator
                     RoleTemplateId: "fe930be7-5e62-47db-91af-98c3a49a38b1"
                     Assignments:
-                      - EndDateTime: null
-                        PrincipalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
+                      - endDateTime: null
+                        principalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
         Postconditions: []
         ExpectedResult: false
       - TestDescription: MS.AAD.7.4v1 Compliant case - No users with permanent assignment
@@ -135,21 +135,21 @@ TestPlan:
                   - DisplayName: Global Administrator
                     RoleTemplateId: "62e90394-69f5-4237-9190-012177145e10"
                     Assignments:
-                      - EndDateTime: "/Date(1672947244397)/"
-                        PrincipalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
+                      - endDateTime: "/Date(1672947244397)/"
+                        principalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
                   - DisplayName: User Administrator
                     RoleTemplateId: "fe930be7-5e62-47db-91af-98c3a49a38b1"
                     Assignments:
-                      - EndDateTime: "/Date(1672947244397)/"
-                        PrincipalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
+                      - endDateTime: "/Date(1672947244397)/"
+                        principalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
         Postconditions: []
         ExpectedResult: true
 
   - PolicyId: MS.AAD.7.5v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.7.5v1 Non-Compliant case - User assigned outside of PIM
-        #### This test case guarantees that at least one privileged role assignment has an StartDateTime of null
+        #### This test case guarantees that at least one privileged role assignment has an startDateTime of null
         Preconditions:
           - Command: UpdateProviderExport
             Splat:
@@ -158,14 +158,14 @@ TestPlan:
                   - DisplayName: Global Administrator
                     RoleTemplateId: "62e90394-69f5-4237-9190-012177145e10"
                     Assignments:
-                      - StartDateTime: "/Date(1672947244397)/"
-                        PrincipalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
+                      - startDateTime: "/Date(1672947244397)/"
+                        principalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
                     Rules: []
                   - DisplayName: User Administrator
                     RoleTemplateId: "fe930be7-5e62-47db-91af-98c3a49a38b1"
                     Assignments:
-                      - StartDateTime: null
-                        PrincipalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
+                      - startDateTime: null
+                        principalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
         Postconditions: []
         ExpectedResult: false
       - TestDescription: MS.AAD.7.5v1 Compliant case - No users assigned outside of PIM
@@ -177,20 +177,20 @@ TestPlan:
                   - DisplayName: Global Administrator
                     RoleTemplateId: "62e90394-69f5-4237-9190-012177145e10"
                     Assignments:
-                      - StartDateTime: "/Date(1672947244397)/"
-                        PrincipalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
+                      - startDateTime: "/Date(1672947244397)/"
+                        principalId: "ae71e61c-f465-4db6-8d26-5f3e52bdd800"
                     Rules: []
                   - DisplayName: User Administrator
                     RoleTemplateId: "fe930be7-5e62-47db-91af-98c3a49a38b1"
                     Assignments:
-                      - StartDateTime: "/Date(1672947244397)/"
-                        PrincipalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
+                      - startDateTime: "/Date(1672947244397)/"
+                        principalId: "ce71e61c-f465-4db6-8d26-5f3e52bdd801"
                     Rules: []
         Postconditions: []
         ExpectedResult: true
 
   - PolicyId: MS.AAD.7.6v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.7.6v1 Non-Compliant case - Global admin activation does not require approval (role)
         Preconditions:
@@ -298,7 +298,7 @@ TestPlan:
         ExpectedResult: true
 
   - PolicyId: MS.AAD.7.7v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.7.7v1 Non-Compliant case - Roles with Eligible Active assignments without alert (role)
         Preconditions:
@@ -496,7 +496,7 @@ TestPlan:
         ExpectedResult: true
 
   - PolicyId: MS.AAD.7.8v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.7.8v1 Non-Compliant case - activation Global Admin no alert (role)
         Preconditions:
@@ -621,7 +621,7 @@ TestPlan:
         ExpectedResult: true
 
   - PolicyId: MS.AAD.7.9v1
-    TestDriver: RunCached
+    TestDriver: ScubaCached
     Tests:
       - TestDescription: MS.AAD.7.9v1 Non-Compliant case - activation other roles do NOT trigger alert (role)
         Preconditions:
