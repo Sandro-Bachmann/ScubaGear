@@ -2,13 +2,14 @@
 
 [![GitHub Release][github-release-img]][release]
 [![PSGallery Release][psgallery-release-img]][psgallery]
-[![GitHub CICD Workflow][github-cicd-workflow-img]][github-cicd-workflow]
+[![CI Pipeline][ci-pipeline-img]][ci-pipeline]
+[![Functional Tests][functional-test-img]][functional-test]
 [![GitHub License][github-license-img]][license]
 [![GitHub Downloads][github-downloads-img]][release]
 [![PSGallery Downloads][psgallery-downloads-img]][psgallery]
 [![GitHub Issues][github-issues-img]][github-issues]
 
-ScubaGear is an assessment tool that verifies that a Microsoft 365 (M365) tenant’s configuration conforms to the policies described in the Secure Cloud Business Applications ([SCuBA](https://cisa.gov/scuba)) Security Configuration Baseline [documents](/baselines/README.md).
+ScubaGear is an assessment tool that verifies that a Microsoft 365 (M365) tenant’s configuration conforms to the policies described in the Secure Cloud Business Applications ([SCuBA](https://cisa.gov/scuba)) Secure Configuration Baseline [documents](/baselines/README.md).
 
 > **Note**: This documentation can be read using [GitHub Pages](https://cisagov.github.io/ScubaGear).
 
@@ -110,6 +111,10 @@ Unless otherwise noted, this project is distributed under the Creative Commons Z
 [github-license-img]: https://img.shields.io/github/license/cisagov/ScubaGear
 [github-release-img]: https://img.shields.io/github/v/release/cisagov/ScubaGear?label=GitHub&logo=github
 [psgallery-release-img]: https://img.shields.io/powershellgallery/v/ScubaGear?logo=powershell&label=PSGallery
+[ci-pipeline]: https://github.com/cisagov/ScubaGear/actions/workflows/run_pipeline.yaml
+[ci-pipeline-img]: https://github.com/cisagov/ScubaGear/actions/workflows/run_pipeline.yaml/badge.svg
+[functional-test]: https://github.com/cisagov/ScubaGear/actions/workflows/test_production_function.yaml
+[functional-test-img]: https://github.com/cisagov/ScubaGear/actions/workflows/test_production_function.yaml/badge.svg
 [github-cicd-workflow-img]: https://img.shields.io/github/actions/workflow/status/cisagov/ScubaGear/run_pipeline.yaml?logo=github
 [github-downloads-img]: https://img.shields.io/github/downloads/cisagov/ScubaGear/total?logo=github
 [psgallery-downloads-img]: https://img.shields.io/powershellgallery/dt/ScubaGear?logo=powershell

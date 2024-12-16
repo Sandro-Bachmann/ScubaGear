@@ -66,12 +66,18 @@ function Invoke-SCuBA {
     .Parameter OutReportName
     The name of the main html file page created in the folder created in OutPath.
     Defaults to "BaselineReports".
-    .Parameter MergeJson
-    Set switch to merge all json output into a single file and delete the individual files
-    after merging.
+    .Parameter KeepIndividualJSON
+    Keeps ScubaGear legacy output where files are not merged into an all in one JSON.
+    This parameter is for backwards compatibility for those working with the older ScubaGear output files.
     .Parameter OutJsonFileName
-    If MergeJson is set, the name of the consolidated json created in the folder
-    created in OutPath. Defaults to "ScubaResults".
+    If KeepIndividualJSON is not set, the name of the consolidated json created in the folder
+    created in OutPath. Defaults to "ScubaResults". The report UUID will be appended to this.
+    .Parameter OutCsvFileName
+    The CSV created in the folder created in OutPath that contains the CSV version of the test results.
+    Defaults to "ScubaResults".
+    .Parameter OutActionPlanFileName
+    The CSV created in the folder created in OutPath that contains a CSV template prepopulated with the failed
+    SHALL controls with fields for documenting failure causes and remediation plans. Defaults to "ActionPlan".
     .Parameter DisconnectOnExit
     Set switch to disconnect all active connections on exit from ScubaGear (default: $false)
     .Parameter ConfigFilePath
@@ -84,11 +90,14 @@ function Invoke-SCuBA {
     Set switch to enable report dark mode by default.
     .Parameter Quiet
     Do not launch external browser for report.
+    .Parameter NumberOfUUIDCharactersToTruncate
+    Controls how many characters will be truncated from the report UUID when appended to the end of OutJsonFileName.
+    Valid values are 0, 13, 18, 36
     .Example
     Invoke-SCuBA
     Run an assessment against by default a commercial M365 Tenant against the
     Azure Active Directory, Exchange Online, Microsoft Defender, One Drive, SharePoint Online, and Microsoft Teams
-    security baselines. The output will stored in the current directory in a folder called M365BaselineConformaance_*.
+    security baselines. The output will stored in the current directory in a folder called M365BaselineConformance_*.
     .Example
     Invoke-SCuBA -Version
     This example returns the version of SCuBAGear.
@@ -205,13 +214,25 @@ function Invoke-SCuBA {
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
         [switch]
-        $MergeJson,
+        $KeepIndividualJSON,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Configuration')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
         [string]
         $OutJsonFileName = [ScubaConfig]::ScubaDefault('DefaultOutJsonFileName'),
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Configuration')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutCsvFileName = [ScubaConfig]::ScubaDefault('DefaultOutCsvFileName'),
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Configuration')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutActionPlanFileName = [ScubaConfig]::ScubaDefault('DefaultOutActionPlanFileName'),
 
         [Parameter(Mandatory = $true, ParameterSetName = 'Configuration')]
         [ValidateNotNullOrEmpty()]
@@ -236,10 +257,17 @@ function Invoke-SCuBA {
         [Parameter(Mandatory = $false, ParameterSetName = 'Configuration')]
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [switch]
-        $Quiet
+        $Quiet,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Configuration')]
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [ValidateSet(0, 13, 18, 36)]
+        [int]
+        $NumberOfUUIDCharactersToTruncate = [ScubaConfig]::ScubaDefault('DefaultNumberOfUUIDCharactersToTruncate')
     )
     process {
-        # Retrive ScubaGear Module versions
+        # Retrieve ScubaGear Module versions
         $ParentPath = Split-Path $PSScriptRoot -Parent -ErrorAction 'Stop'
         $ScubaManifest = Import-PowerShellDataFile (Join-Path -Path $ParentPath -ChildPath 'ScubaGear.psd1' -Resolve) -ErrorAction 'Stop'
         $ModuleVersion = $ScubaManifest.ModuleVersion
@@ -268,8 +296,11 @@ function Invoke-SCuBA {
                 'OutProviderFileName' = $OutProviderFileName
                 'OutRegoFileName' = $OutRegoFileName
                 'OutReportName' = $OutReportName
-                'MergeJson' = $MergeJson
+                'KeepIndividualJSON' = $KeepIndividualJSON
                 'OutJsonFileName' = $OutJsonFileName
+                'OutCsvFileName' = $OutCsvFileName
+                'OutActionPlanFileName' = $OutActionPlanFileName
+                'NumberOfUUIDCharactersToTruncate' = $NumberOfUUIDCharactersToTruncate
             }
 
             $ScubaConfig = New-Object -Type PSObject -Property $ProvidedParameters
@@ -323,6 +354,12 @@ function Invoke-SCuBA {
             }
         }
 
+        if ($ScubaConfig.OutCsvFileName -eq $ScubaConfig.OutActionPlanFileName) {
+            $ErrorMessage = "OutCsvFileName and OutActionPlanFileName cannot be equal to each other. "
+            $ErrorMessage += "Both are set to $($ScubaConfig.OutCsvFileName). Stopping execution."
+            throw $ErrorMessage
+        }
+
         # Creates the output folder
         $Date = Get-Date -ErrorAction 'Stop'
         $FormattedTimeStamp = $Date.ToString("yyyy_MM_dd_HH_mm_ss")
@@ -348,22 +385,26 @@ function Invoke-SCuBA {
         # Tenant Metadata for the Report
         $TenantDetails = Get-TenantDetail -ProductNames $ScubaConfig.ProductNames -M365Environment $ScubaConfig.M365Environment
 
+        # Generate a GUID to uniquely identify the output JSON
+        $Guid = New-Guid -ErrorAction 'Stop'
+
         try {
             # Provider Execution
             $ProviderParams = @{
-                'ProductNames' = $ScubaConfig.ProductNames;
-                'M365Environment' = $ScubaConfig.M365Environment;
-                'TenantDetails' = $TenantDetails;
-                'ModuleVersion' = $ModuleVersion;
-                'OutFolderPath' = $OutFolderPath;
+                'ProductNames'        = $ScubaConfig.ProductNames;
+                'M365Environment'     = $ScubaConfig.M365Environment;
+                'TenantDetails'       = $TenantDetails;
+                'ModuleVersion'       = $ModuleVersion;
+                'OutFolderPath'       = $OutFolderPath;
                 'OutProviderFileName' = $ScubaConfig.OutProviderFileName;
-                'BoundParameters' = $PSBoundParameters;
+                'Guid'                = $Guid;
+                'BoundParameters'     = $PSBoundParameters;
             }
             $ProdProviderFailed = Invoke-ProviderList @ProviderParams
             if ($ProdProviderFailed.Count -gt 0) {
                 $ScubaConfig.ProductNames = Compare-ProductList -ProductNames $ScubaConfig.ProductNames `
-                 -ProductsFailed $ProdProviderFailed `
-                 -ExceptionMessage 'All indicated Product Providers failed to execute'
+                -ProductsFailed $ProdProviderFailed `
+                -ExceptionMessage 'All indicated Product Providers failed to execute'
             }
 
             # OPA Rego invocation
@@ -398,18 +439,36 @@ function Invoke-SCuBA {
             }
             Invoke-ReportCreation @ReportParams
 
-            if ($MergeJson) {
+            $FullNameParams = @{
+                'OutJsonFileName'                  = $ScubaConfig.OutJsonFileName;
+                'Guid'                             = $Guid;
+                'NumberOfUUIDCharactersToTruncate' = $ScubaConfig.NumberOfUUIDCharactersToTruncate;
+            }
+            $FullScubaResultsName = Get-FullOutJsonName @FullNameParams
+
+            if (-not $KeepIndividualJSON) {
                 # Craft the complete json version of the output
                 $JsonParams = @{
-                    'ProductNames' = $ScubaConfig.ProductNames;
-                    'OutFolderPath' = $OutFolderPath;
-                    'OutProviderFileName' = $ScubaConfig.OutProviderFileName;
-                    'TenantDetails' = $TenantDetails;
-                    'ModuleVersion' = $ModuleVersion;
-                    'OutJsonFileName' = $ScubaConfig.OutJsonFileName;
+                    'ProductNames'         = $ScubaConfig.ProductNames;
+                    'OutFolderPath'        = $OutFolderPath;
+                    'OutProviderFileName'  = $ScubaConfig.OutProviderFileName;
+                    'TenantDetails'        = $TenantDetails;
+                    'ModuleVersion'        = $ModuleVersion;
+                    'FullScubaResultsName' = $FullScubaResultsName;
+                    'Guid'                 = $Guid;
                 }
                 Merge-JsonOutput @JsonParams
             }
+
+            # Craft the csv version of just the results
+            $CsvParams = @{
+                'ProductNames'          = $ScubaConfig.ProductNames;
+                'OutFolderPath'         = $OutFolderPath;
+                'FullScubaResultsName'  = $FullScubaResultsName;
+                'OutCsvFileName'        = $ScubaConfig.OutCsvFileName;
+                'OutActionPlanFileName' = $ScubaConfig.OutActionPlanFileName;
+            }
+            ConvertTo-ResultsCsv @CsvParams
         }
         finally {
             if ($ScubaConfig.DisconnectOnExit) {
@@ -504,6 +563,11 @@ function Invoke-ProviderList {
         [ValidateNotNullOrEmpty()]
         [string]
         $OutProviderFileName,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Guid,
 
         [Parameter(Mandatory = $true)]
         [hashtable]
@@ -603,27 +667,26 @@ function Invoke-ProviderList {
                 "module_version": "$ModuleVersion",
                 "date": "$($CurrentDate) $($TimeZone)",
                 "timestamp_zulu": "$($TimestampZulu)",
+                "report_uuid": "$($Guid)",
                 "tenant_details": $($TenantDetails),
                 "scuba_config": $($ConfigDetails),
-
                 $ProviderJSON
         }
 "@
 
-            # Strip the character sequences that Rego tries to interpret as escape sequences,
-            # resulting in the error "unable to parse input: yaml: line x: found unknown escape character"
-            # "\/", ex: "\/Date(1705651200000)\/"
-            $BaselineSettingsExport = $BaselineSettingsExport.replace("\/", "")
-            # "\B", ex: "Removed an entry in Tenant Allow\Block List"
-            $BaselineSettingsExport = $BaselineSettingsExport.replace("\B", "/B")
+            # PowerShell 5 includes the "byte-order mark" (BOM) when it writes UTF-8 files. However, OPA (as of 0.68) appears to not
+            # be able to handle the "\/" character sequence if the input json is UTF-8 encoded with the BOM, resulting
+            # in the "unable to parse input: yaml" error message. As such, we need to save the provider output without
+            # the BOM
+            $ActualSavedLocation = Set-Utf8NoBom -Content $BaselineSettingsExport `
+                -Location $OutFolderPath -FileName "$OutProviderFileName.json"
+            Write-Debug $ActualSavedLocation
 
-            $FinalPath = Join-Path -Path $OutFolderPath -ChildPath "$($OutProviderFileName).json" -ErrorAction 'Stop'
-            $BaselineSettingsExport | Set-Content -Path $FinalPath -Encoding $(Get-FileEncoding) -ErrorAction 'Stop'
             $ProdProviderFailed
         }
         catch {
             $InvokeProviderListErrorMessage = "Fatal Error involving the Provider functions. `
-            Ending ScubaGear execution. See the exception message for more details: $($_)"
+            Ending ScubaGear execution. See the exception message for more details: $($_)`n$($_.ScriptStackTrace)"
             throw $InvokeProviderListErrorMessage
         }
     }
@@ -715,18 +778,6 @@ function Invoke-RunRego {
             $FileName = Join-Path -Path $OutFolderPath "$($OutRegoFileName).json" -ErrorAction 'Stop'
             $TestResultsJson | Set-Content -Path $FileName -Encoding $(Get-FileEncoding) -ErrorAction 'Stop'
 
-            foreach ($Product in $TestResults) {
-                foreach ($Test in $Product) {
-                    # ConvertTo-Csv struggles with the nested nature of the ActualValue
-                    # and Commandlet fields. Explicitly convert these to json strings before
-                    # calling ConvertTo-Csv
-                    $Test.ActualValue = $Test.ActualValue | ConvertTo-Json -Depth 3 -Compress -ErrorAction 'Stop'
-                    $Test.Commandlet = $Test.Commandlet -Join ", "
-                }
-            }
-            $TestResultsCsv = $TestResults | ConvertTo-Csv -NoTypeInformation -ErrorAction 'Stop'
-            $CSVFileName = Join-Path -Path $OutFolderPath "$($OutRegoFileName).csv" -ErrorAction 'Stop'
-            $TestResultsCsv | Set-Content -Path $CSVFileName -Encoding $(Get-FileEncoding) -ErrorAction 'Stop'
             $ProdRegoFailed
         }
         catch {
@@ -772,6 +823,202 @@ function Pluralize {
     }
 }
 
+function Format-PlainText {
+    <#
+    .Description
+    This function sanitizes a given string so that it will render properly in Excel (e.g., remove HTML tags).
+    .Functionality
+    Internal
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $RawString
+    )
+    process {
+        $CleanString = $RawString
+        # Multi-line strings (e.g., the requirment string for MS.EXO.16.1v1) need to be merged into a single
+        # line, otherwise the single control will be split into multiple rows in the CSV output
+        $CleanString = $CleanString.Replace("`n", " ")
+        # The "View all CA policies" link needs to be removed from the spreadsheet as what it links to
+        # does not exist in the spreadsheet
+        $CleanString = $CleanString.Replace("<a href='#caps'>View all CA policies</a>.", "")
+        # Remove HTML tags that won't render properly in the spreadsheet and whose removal won't affect the
+        # overall meaning of the string
+        $CleanString = $CleanString.Replace("<br/>", " ")
+        $CleanString = $CleanString.Replace("<b>", "")
+        $CleanString = $CleanString.Replace("</b>", "")
+        # Strip out HTML comments
+        $CleanString = $CleanString -replace '(.*)(<!--)(.*)(-->)(.*)', '$1$5'
+        # The following regex looks for a string with an anchor tag. If it finds an anchor tag, it reformats
+        # the string so that the anchor is removed. For example:
+        # 'See <a href="https://example.com" target="_blank">this example</a> for more details.'
+        # becomes
+        # 'See this example, https://example.com for more details.'
+        # In-depth interpretation:
+        # Group 1: '(.*)' Matches any number of characters before the opening anchor tag
+        # Group 2: '<a href="' Matches the opening anchor tag, up to and including the opening quote of the href
+        # Group 3: '([\w#./=&?%\-+:;$@,]+)' Matches the href string
+        # Group 4: '(".*>)' Matches the last half of the opening anchor tag
+        # Group 5: '(.*)' Matches the anchor inner html, i.e., the link's display text
+        # Group 6: '(</a>)' Matches the closing anchor tag
+        # Group 7: '(.*)' Matches any number of characters after the closing anchor tag
+        $CleanString = $CleanString -replace '(.*)(<a href=")([\w#./=&?%\-+:;$@,]+)(".*>)(.*)(</a>)(.*)', '$1$5, $3$7'
+
+        $CleanString
+    }
+}
+
+function Get-FullOutJsonName {
+    <#
+    .Description
+    This function determines the full file name of the SCuBA results file.
+    .Functionality
+    Internal
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutJsonFileName,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Guid,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [ValidateSet(0, 13, 18, 36)]
+        [int]
+        $NumberOfUUIDCharactersToTruncate
+    )
+    process {
+        # Truncate the UUID at the end of the ScubaResults JSON file by the parameter value.
+        # This is is to possibly prevent Windows maximum path length errors that may occur when moving files
+        # with a large number of characters
+        $TruncatedGuid = $Guid.Substring(0, $Guid.Length - $NumberOfUUIDCharactersToTruncate)
+
+        # If the UUID still exists after truncation
+        if ($TruncatedGuid.Length -gt 0) {
+            $ScubaResultsFileName = "$($OutJsonFileName)_$($TruncatedGuid).json"
+        }
+        else {
+            # Otherwise omit adding it to the resulting file name
+            $ScubaResultsFileName = "$($OutJsonFileName).json"
+        }
+
+        $ScubaResultsFileName
+    }
+}
+
+function ConvertTo-ResultsCsv {
+    <#
+    .Description
+    This function converts the controls inside the Results section of the json output to a csv.
+    .Functionality
+    Internal
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [ValidateSet("teams", "exo", "defender", "aad", "powerplatform", "sharepoint", '*', IgnoreCase = $false)]
+        [string[]]
+        $ProductNames,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutFolderPath,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $FullScubaResultsName,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutCsvFileName,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutActionPlanFileName
+    )
+    process {
+        try {
+            $ScubaResultsPath = Join-Path $OutFolderPath -ChildPath $FullScubaResultsName
+
+            if (Test-Path $ScubaResultsPath -PathType Leaf) {
+                # The ScubaResults file exists, no need to look for the individual json files
+                $ScubaResults = Get-Content (Get-ChildItem $ScubaResultsPath).FullName | ConvertFrom-Json
+            }
+            else {
+                # The ScubaResults file does not exists, so we need to look inside the IndividualReports
+                # folder for the json file specific to each product
+                $ScubaResults = @{"Results" = [PSCustomObject]@{}}
+                $IndividualReportPath = Join-Path -Path $OutFolderPath $IndividualReportFolderName -ErrorAction 'Stop'
+                foreach ($Product in $ProductNames) {
+                    $BaselineName = $ArgToProd[$Product]
+                    $FileName = Join-Path $IndividualReportPath "$($BaselineName)Report.json"
+                    $IndividualResults = Get-Content $FileName | ConvertFrom-Json
+                    $ScubaResults.Results | Add-Member -NotePropertyName $BaselineName `
+                        -NotePropertyValue $IndividualResults.Results
+                }
+            }
+            $ActionPlanCsv = @()
+            $ScubaResultsCsv = @()
+            foreach ($Product in $ScubaResults.Results.PSObject.Properties) {
+                foreach ($Group in $Product.Value) {
+                    foreach ($Control in $Group.Controls) {
+                        $Control.Requirement = Format-PlainText -RawString $Control.Requirement
+                        $Control.Details = Format-PlainText -RawString $Control.Details
+                        $ScubaResultsCsv += $Control
+                        if ($Control.Result -eq "Fail") {
+                            # Add blank fields where users can document reasons for failures and timelines
+                            # for remediation if they so choose
+                            # The space " " instead of empty string makes it so that output from the cells to the
+                            # left won't automatically overlap into the space for these columns in Excel
+                            $Reason = " "
+                            $RemediationDate = " "
+                            $Justification = " "
+                            $Control | Add-Member -NotePropertyName "Non-Compliance Reason" -NotePropertyValue $Reason
+                            $Control | Add-Member -NotePropertyName "Remediation Completion Date" `
+                            -NotePropertyValue $RemediationDate
+                            $Control | Add-Member -NotePropertyName "Justification" -NotePropertyValue $Justification
+                            $ActionPlanCsv += $Control
+                        }
+                    }
+                }
+            }
+            $ResultsCsvFileName = Join-Path -Path $OutFolderPath "$OutCsvFileName.csv"
+            $PlanCsvFileName = Join-Path -Path $OutFolderPath "$OutActionPlanFileName.csv"
+            $Encoding = Get-FileEncoding
+            $ScubaResultsCsv | ConvertTo-Csv -NoTypeInformation | Set-Content -Path $ResultsCsvFileName -Encoding $Encoding
+            if ($ActionPlanCsv.Length -eq 0) {
+                # If no tests failed, add the column names to ensure a file is still output
+                $Headers = $ScubaResultsCsv[0].psobject.Properties.Name -Join '","'
+                $Headers = "`"$Headers`""
+                $Headers += '"Non-Compliance Reason","Remediation Completion Date","Justification"'
+                $Headers | Set-Content -Path $PlanCsvFileName -Encoding $Encoding
+            }
+            else {
+                $ActionPlanCsv | ConvertTo-Csv -NoTypeInformation | Set-Content -Path $PlanCsvFileName -Encoding $Encoding
+            }
+        }
+        catch {
+            $Warning = "Error involving the creation of CSV version of output. "
+            $Warning += "See the exception message for more details: $($_)"
+            Write-Warning $Warning
+        }
+    }
+}
+
 function Merge-JsonOutput {
     <#
     .Description
@@ -810,7 +1057,12 @@ function Merge-JsonOutput {
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
         [string]
-        $OutJsonFileName
+        $FullScubaResultsName,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $Guid
     )
     process {
         try {
@@ -821,7 +1073,8 @@ function Merge-JsonOutput {
             $SettingsExportPath = Join-Path $OutFolderPath -ChildPath "$($OutProviderFileName).json"
             $DeletionList += $SettingsExportPath
             $SettingsExport =  Get-Content $SettingsExportPath -Raw
-            $TimestampZulu = $(ConvertFrom-Json $SettingsExport).timestamp_zulu
+            $SettingsExportObject = $(ConvertFrom-Json $SettingsExport)
+            $TimestampZulu = $SettingsExportObject.timestamp_zulu
 
             # Get a list and abbreviation mapping of the products assessed
             $FullNames = @()
@@ -845,6 +1098,7 @@ function Merge-JsonOutput {
                 "Tool" = "ScubaGear";
                 "ToolVersion" = $ModuleVersion;
                 "TimestampZulu" = $TimestampZulu;
+                "ReportUUID" = $Guid;
             }
 
 
@@ -885,9 +1139,8 @@ function Merge-JsonOutput {
             $ReportJson = $ReportJson.replace("\u003e", ">")
             $ReportJson = $ReportJson.replace("\u0027", "'")
 
-            # Save the file
-            $JsonFileName = Join-Path -Path $OutFolderPath "$($OutJsonFileName).json" -ErrorAction 'Stop'
-            $ReportJson | Set-Content -Path $JsonFileName -Encoding $(Get-FileEncoding) -ErrorAction 'Stop'
+            $ScubaResultsPath = Join-Path $OutFolderPath -ChildPath $FullScubaResultsName -ErrorAction 'Stop'
+            $ReportJson | Set-Content -Path $ScubaResultsPath -Encoding $(Get-FileEncoding) -ErrorAction 'Stop'
 
             # Delete the now redundant files
             foreach ($File in $DeletionList) {
@@ -895,9 +1148,19 @@ function Merge-JsonOutput {
             }
         }
         catch {
-            $MergeJsonErrorMessage = "Fatal Error involving the Json reports aggregation. `
-            Ending ScubaGear execution. See the exception message for more details: $($_)"
-            throw $MergeJsonErrorMessage
+            if ($_.FullyQualifiedErrorId -eq "GetContentWriterPathTooLongError,Microsoft.PowerShell.Commands.SetContentCommand") {
+                $MAX_WINDOWS_PATH_LEN = 256
+                $PathLengthErrorMessage = "ScubaGear was likely executed in a location where the maximum file path length is greater than the allowable Windows file system limit `
+                Please execute ScubaGear in a directory where for Windows file path limit is less than $($MAX_WINDOWS_PATH_LEN).`
+                Another option is to change the -NumberOfUUIDCharactersToTruncate, -OutJSONFileName, or -OutFolderName parameters to achieve an acceptable file path length `
+                See the Invoke-SCuBA parameters documentation for more details. $($_)"
+                throw $PathLengthErrorMessage
+            }
+            else {
+                $MergeJsonErrorMessage = "Fatal Error involving the Json reports aggregation. `
+                Ending ScubaGear execution. See the exception message for more details: $($_)"
+                throw $MergeJsonErrorMessage
+            }
         }
     }
 }
@@ -1057,10 +1320,14 @@ function Invoke-ReportCreation {
             $TenantMetaData = $TenantMetaData -replace '^(.*?)<table>','<table class ="tenantdata" style = "text-align:center;">'
             $Fragment = $Fragment | ConvertTo-Html -Fragment -ErrorAction 'Stop'
 
+            $ProviderJSONFilePath = Join-Path -Path $OutFolderPath -ChildPath "$($OutProviderFileName).json" -Resolve
+            $ReportUuid = $(Get-Utf8NoBom -FilePath $ProviderJSONFilePath | ConvertFrom-Json).report_uuid
+
             $ReportHtmlPath = Join-Path -Path $ReporterPath -ChildPath "ParentReport" -ErrorAction 'Stop'
             $ReportHTML = (Get-Content $(Join-Path -Path $ReportHtmlPath -ChildPath "ParentReport.html") -ErrorAction 'Stop') -Join "`n"
             $ReportHTML = $ReportHTML.Replace("{TENANT_DETAILS}", $TenantMetaData)
             $ReportHTML = $ReportHTML.Replace("{TABLES}", $Fragment)
+            $ReportHTML = $ReportHTML.Replace("{REPORT_UUID}", $ReportUuid)
             $ReportHTML = $ReportHTML.Replace("{MODULE_VERSION}", "v$ModuleVersion")
             $ReportHTML = $ReportHTML.Replace("{BASELINE_URL}", $BaselineURL)
 
@@ -1297,7 +1564,7 @@ function Import-Resources {
             Import-Module $ModulePath
         }
 
-        @('Connection', 'RunRego', 'CreateReport', 'ScubaConfig', 'Support') | ForEach-Object {
+        @('Connection', 'RunRego', 'CreateReport', 'ScubaConfig', 'Support', 'Utility') | ForEach-Object {
             $ModulePath = Join-Path -Path $PSScriptRoot -ChildPath $_ -ErrorAction 'Stop'
             Write-Debug "Importing $_ module"
             Import-Module -Name $ModulePath
@@ -1404,14 +1671,23 @@ function Invoke-SCuBACached {
     .Parameter OutReportName
     The name of the main html file page created in the folder created in OutPath.
     Defaults to "BaselineReports".
-    .Parameter MergeJson
-    Set switch to merge all json output into a single file and delete the individual files
-    after merging.
+    .Parameter KeepIndividualJSON
+    Keeps ScubaGear legacy output where files are not merged into an all in one JSON.
+    This parameter is for backwards compatibility for those working with the older ScubaGear output files.
     .Parameter OutJsonFileName
-    If MergeJson is set, the name of the consolidated json created in the folder
-    created in OutPath. Defaults to "ScubaResults".
+    If KeepIndividualJSON is set, the name of the consolidated json created in the folder
+    created in OutPath. Defaults to "ScubaResults". The report UUID will be appended to this.
+    .Parameter OutCsvFileName
+    The CSV created in the folder created in OutPath that contains the CSV version of the test results.
+    Defaults to "ScubaResults".
+    .Parameter OutActionPlanFileName
+    The CSV created in the folder created in OutPath that contains a CSV template prepopulated with the failed
+    SHALL controls with fields for documenting failure causes and remediation plans. Defaults to "ActionPlan".
     .Parameter DarkMode
     Set switch to enable report dark mode by default.
+    .Parameter NumberOfUUIDCharactersToTruncate
+    Controls how many characters will be truncated from the report UUID when appended to the end of OutJsonFileName.
+    Valid values are 0, 13, 18, 36
     .Example
     Invoke-SCuBACached
     Run an assessment against by default a commercial M365 Tenant against the
@@ -1508,12 +1784,22 @@ function Invoke-SCuBACached {
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
         [switch]
-        $MergeJson,
+        $KeepIndividualJSON,
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
         [string]
         $OutJsonFileName = [ScubaConfig]::ScubaDefault('DefaultOutJsonFileName'),
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutCsvFileName = [ScubaConfig]::ScubaDefault('DefaultOutCsvFileName'),
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [string]
+        $OutActionPlanFileName = [ScubaConfig]::ScubaDefault('DefaultOutActionPlanFileName'),
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [ValidateNotNullOrEmpty()]
@@ -1523,7 +1809,13 @@ function Invoke-SCuBACached {
 
         [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
         [switch]
-        $DarkMode
+        $DarkMode,
+
+        [Parameter(Mandatory = $false, ParameterSetName = 'Report')]
+        [ValidateNotNullOrEmpty()]
+        [ValidateSet(0, 13, 18, 36)]
+        [int]
+        $NumberOfUUIDCharactersToTruncate = [ScubaConfig]::ScubaDefault('DefaultNumberOfUUIDCharactersToTruncate')
         )
         process {
             $ParentPath = Split-Path $PSScriptRoot -Parent
@@ -1539,6 +1831,12 @@ function Invoke-SCuBACached {
                 $ProductNames = "teams", "exo", "defender", "aad", "sharepoint", "powerplatform"
             }
 
+            if ($OutCsvFileName -eq $OutActionPlanFileName) {
+                $ErrorMessage = "OutCsvFileName and OutActionPlanFileName cannot be equal to each other. "
+                $ErrorMessage += "Both are set to $($OutCsvFileName). Stopping execution."
+                throw $ErrorMessage
+            }
+
             # Create outpath if $Outpath does not exist
             if(-not (Test-Path -PathType "container" $OutPath))
             {
@@ -1548,7 +1846,7 @@ function Invoke-SCuBACached {
             $ProductNames = $ProductNames | Sort-Object -Unique
 
             Remove-Resources
-            Import-Resources # Imports Providers, RunRego, CreateReport, Connection
+            Import-Resources # Imports Providers, RunRego, CreateReport, Connection, Support, Utility
 
             # Authenticate
             $ConnectionParams = @{
@@ -1558,10 +1856,22 @@ function Invoke-SCuBACached {
                 'BoundParameters' = $PSBoundParameters;
             }
 
-            # Rego Testing failsafe
+            # Create a failsafe tenant metadata variable in case the
+            # provider cannot retrieve the data.
             $TenantDetails = @{"DisplayName"="Rego Testing";}
             $TenantDetails = $TenantDetails | ConvertTo-Json -Depth 3
+
             if ($ExportProvider) {
+                # Check if there is a previous ScubaResults file
+                # delete if found
+                $PreviousResultsFiles = Get-ChildItem -Path $OutPath -Filter "$($OutJsonFileName)*.json"
+                if ($PreviousResultsFiles) {
+                    $PreviousResultsFiles | ForEach-Object {
+                        Remove-Item $_.FullName -Force
+                    }
+                }
+
+                # authenticate
                 $ProdAuthFailed = Invoke-Connection @ConnectionParams
                 if ($ProdAuthFailed.Count -gt 0) {
                     $Difference = Compare-Object $ProductNames -DifferenceObject $ProdAuthFailed -PassThru
@@ -1573,6 +1883,10 @@ function Invoke-SCuBACached {
                     }
                 }
                 $TenantDetails = Get-TenantDetail -ProductNames $ProductNames -M365Environment $M365Environment
+
+                # A new GUID needs to be generated if the provider is run
+                $Guid = New-Guid -ErrorAction 'Stop'
+
                 $ProviderParams = @{
                     'ProductNames' = $ProductNames;
                     'M365Environment' = $M365Environment;
@@ -1580,12 +1894,49 @@ function Invoke-SCuBACached {
                     'ModuleVersion' = $ModuleVersion;
                     'OutFolderPath' = $OutFolderPath;
                     'OutProviderFileName' = $OutProviderFileName;
+                    'Guid' = $Guid;
                     'BoundParameters' = $PSBoundParameters;
                 }
                 Invoke-ProviderList @ProviderParams
             }
-            $FileName = Join-Path -Path $OutPath -ChildPath "$($OutProviderFileName).json"
-            $SettingsExport = Get-Content $FileName | ConvertFrom-Json
+
+            $ProviderJSONFilePath = Join-Path -Path $OutPath -ChildPath "$($OutProviderFileName).json"
+            if (-not (Test-Path $ProviderJSONFilePath)) {
+                # When running Invoke-ScubaCached, the provider output might not exist as a stand-alone
+                # file depending on what version of ScubaGear created the output. If the provider output
+                # does not exist as a stand-alone file, create it from the ScubaResults file so the other functions
+                # can execute as normal.
+                $ScubaResultsFileName = Join-Path -Path $OutPath -ChildPath "$($OutJsonFileName)*.json"
+                # As there is the possibility that the wildcard will match multiple files,
+                # select the one that was created last if there are multiple.
+                # By default ScubaGear will output the files into their own folder.
+                # The only case this will happen is when someone personally moves multiple files into the
+                # same folder.
+                $SettingsExport = $(Get-Content (Get-ChildItem $ScubaResultsFileName | Sort-Object CreationTime -Descending | Select-Object -First 1).FullName | ConvertFrom-Json).Raw
+
+                # Uses the custom UTF8 NoBOM function to reoutput the Provider JSON file
+                $ProviderContent = $SettingsExport | ConvertTo-Json -Depth 20
+                $ActualSavedLocation = Set-Utf8NoBom -Content $ProviderContent `
+                -Location $OutPath -FileName "$OutProviderFileName.json"
+                Write-Debug $ActualSavedLocation
+            }
+            $SettingsExport = Get-Content $ProviderJSONFilePath | ConvertFrom-Json
+
+            # Generate a new UUID if the original data doesn't have one
+            if (-not (Get-Member -InputObject $SettingsExport -Name "report_uuid" -MemberType Properties)) {
+                $Guid = New-Guid -ErrorAction 'Stop'
+                $SettingsExport | Add-Member -Name 'report_uuid' -Value $Guid -Type NoteProperty
+            }
+            else {
+                # Otherwise grab the UUID from the JSON itself
+                $Guid = $SettingsExport.report_uuid
+            }
+
+            $ProviderContent = $SettingsExport | ConvertTo-Json -Depth 20
+            $ActualSavedLocation = Set-Utf8NoBom -Content $ProviderContent `
+            -Location $OutPath -FileName "$OutProviderFileName.json"
+            Write-Debug $ActualSavedLocation
+
             $TenantDetails = $SettingsExport.tenant_details
             $RegoParams = @{
                 'ProductNames' = $ProductNames;
@@ -1609,7 +1960,14 @@ function Invoke-SCuBACached {
             Invoke-RunRego @RegoParams
             Invoke-ReportCreation @ReportParams
 
-            if ($MergeJson) {
+            $FullNameParams = @{
+                'OutJsonFileName'                  = $OutJsonFileName;
+                'Guid'                             = $Guid;
+                'NumberOfUUIDCharactersToTruncate' = $NumberOfUUIDCharactersToTruncate;
+            }
+            $FullScubaResultsName = Get-FullOutJsonName @FullNameParams
+
+            if (-not $KeepIndividualJSON) {
                 # Craft the complete json version of the output
                 $JsonParams = @{
                     'ProductNames' = $ProductNames;
@@ -1617,10 +1975,20 @@ function Invoke-SCuBACached {
                     'OutProviderFileName' = $OutProviderFileName;
                     'TenantDetails' = $TenantDetails;
                     'ModuleVersion' = $ModuleVersion;
-                    'OutJsonFileName' = $OutJsonFileName;
+                    'FullScubaResultsName' = $FullScubaResultsName;
+                    'Guid' = $Guid;
                 }
                 Merge-JsonOutput @JsonParams
             }
+            # Craft the csv version of just the results
+            $CsvParams = @{
+                'ProductNames' = $ProductNames;
+                'OutFolderPath' = $OutFolderPath;
+                'FullScubaResultsName' = $FullScubaResultsName;
+                'OutCsvFileName' = $OutCsvFileName;
+                'OutActionPlanFileName' = $OutActionPlanFileName;
+            }
+            ConvertTo-ResultsCsv @CsvParams
         }
     }
 

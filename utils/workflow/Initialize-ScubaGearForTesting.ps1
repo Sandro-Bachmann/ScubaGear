@@ -1,5 +1,9 @@
-function Initialize-ScubaGearForTesting
-{
+function Initialize-ScubaGearForTesting {
+  <#
+    .SYNOPSIS
+      Initializes ScubaGear, which installs the necessary modules and tools to run ScubaGear.
+  #>
+
   Write-Output 'Initializing ScubaGear for testing...'
   $RepoRootPath = Join-Path -Path $PSScriptRoot -ChildPath '..\..' -Resolve
   Write-Output 'The repo root path is'
@@ -9,7 +13,3 @@ function Initialize-ScubaGearForTesting
   Write-Output 'Calling Initialize ScubaGear...'
   Initialize-SCuBA
 }
-
-Export-ModuleMember -Function @(
-  'Initialize-ScubaGearForTesting'
-)

@@ -50,6 +50,9 @@ function Initialize-SCuBA {
         existing module will not be updated to th latest version.
     .EXAMPLE
         Initialize-SCuBA
+    .EXAMPLE
+        Initalize-SCuBA -Scope AllUsers
+        Install all dependent PowerShell modules in a location that's accessible to all users of the computer.
     .NOTES
         Executing the script with no switches set will install the latest
         version of a module if not already installed.
@@ -91,7 +94,12 @@ function Initialize-SCuBA {
         [Parameter(Mandatory=$false, HelpMessage = 'Directory to contain ScubaGear artifacts. Defaults to <home>.')]
         [ValidateScript({Test-Path -Path $_ -PathType Container})]
         [string]
-        $ScubaParentDirectory = $env:USERPROFILE
+        $ScubaParentDirectory = $env:USERPROFILE,
+
+        [Parameter(Mandatory=$false, HelpMessage = 'Specifies the Install-Module scope of the dependent PowerShell modules. Acceptable values are AllUsers and CurrentUser. Defaults to CurrentUser')]
+        [ValidateSet('CurrentUser','AllUsers')]
+        [string]
+        $Scope = 'CurrentUser'
     )
 
     Write-Output 'Initializing ScubaGear...'
@@ -114,21 +122,27 @@ function Initialize-SCuBA {
     # Start a stopwatch to time module installation elapsed time
     $Stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-    # Need to determine where module is so we can get required versions info
-    $ParentPath = Split-Path -parent $PSScriptRoot
-    $ModulePath = Split-Path -parent $ParentPath
+    # Since this method is called from the Support module, script root
+    # points to the Support module location
+    # Use script root rather than Get-Module as this may be called by
+    # a script that only imports the function and not the whole module
+    $SupportPath = $PSScriptRoot
+
+    # Scuba module structure means module home is grandparent of support
+    $ScubaModuleDir = Split-Path -Path $(Split-Path -Path $SupportPath -Parent) -Parent
+
     # Removing the import below causes issues with testing, let it be.
     # Import module magic may be helping by:
     #   * restricting the import so only that only function is exported
     #   * imported function takes precedence over imported modules w/ function
-    Import-Module $ModulePath -Function Initialize-Scuba
-    $ModuleParentDir = Split-Path -Path (Get-Module ScubaGear).Path -Parent
+    Import-Module $SupportPath -Function Initialize-Scuba
+
     try {
-        ($RequiredModulesPath = Join-Path -Path $ModuleParentDir -ChildPath 'RequiredVersions.ps1') *> $null
+        ($RequiredModulesPath = Join-Path -Path $ScubaModuleDir -ChildPath 'RequiredVersions.ps1') *> $null
         . $RequiredModulesPath
     }
     catch {
-        throw "Unable to find RequiredVersions.ps1 in expected directory:`n`t$ModuleParentDir"
+        throw "Unable to find RequiredVersions.ps1 in expected directory:`n`t$ScubaModuleDir"
     }
 
     if ($ModuleList) {
@@ -158,7 +172,7 @@ function Initialize-SCuBA {
                     Install-Module -Name $ModuleName `
                         -Force `
                         -AllowClobber `
-                        -Scope CurrentUser `
+                        -Scope "$($Scope)" `
                         -MaximumVersion $Module.MaximumVersion
                     Write-Information -MessageData "Re-installing module to latest acceptable version: ${ModuleName}."
                 }
@@ -171,7 +185,7 @@ function Initialize-SCuBA {
                     Install-Module -Name $ModuleName `
                         -Force `
                         -AllowClobber `
-                        -Scope CurrentUser `
+                        -Scope "$($Scope)" `
                         -MaximumVersion $Module.MaximumVersion
                     $MaxInstalledVersion = (Get-Module -ListAvailable -Name $ModuleName | Sort-Object Version -Descending | Select-Object Version -First 1).Version
                     Write-Information -MessageData "${ModuleName}: ${HighestInstalledVersion} updated to version ${MaxInstalledVersion}."
@@ -181,7 +195,7 @@ function Initialize-SCuBA {
         else {
             Install-Module -Name $ModuleName `
                 -AllowClobber `
-                -Scope CurrentUser `
+                -Scope "$($Scope)" `
                 -MaximumVersion $Module.MaximumVersion
                 $MaxInstalledVersion = (Get-Module -ListAvailable -Name $ModuleName | Sort-Object Version -Descending | Select-Object Version -First 1).Version
             Write-Information -MessageData "Installed the latest acceptable version of ${ModuleName}: ${MaxInstalledVersion}."
@@ -244,9 +258,7 @@ function Install-OPAforSCuBA {
     )
 
     # Constants
-    $ACCEPTABLEVERSIONS = '0.59.0', '0.60.0', '0.61.0',
-    '0.62.1', '0.63.0', '0.64.1',
-    '0.65.0', [ScubaConfig]::ScubaDefault('DefaultOPAVersion') # End Versions
+    $ACCEPTABLEVERSIONS = '0.69.0', [ScubaConfig]::ScubaDefault('DefaultOPAVersion') # End Versions
     $FILENAME = @{ Windows = "opa_windows_amd64.exe"; MacOS = "opa_darwin_amd64"; Linux = "opa_linux_amd64_static"}
 
     # Set prefernces for writing messages
@@ -266,7 +278,7 @@ function Install-OPAforSCuBA {
     }
 
     if(-not $ACCEPTABLEVERSIONS.Contains($ExpectedVersion)) {
-        $AcceptableVersionsString = $ACCETABLEVERSIONS -join "`r`n" | Out-String
+        $AcceptableVersionsString = $ACCEPTABLEVERSIONS -join "`r`n" | Out-String
         throw "Version parameter entered, ${ExpectedVersion}, is not in the list of acceptable versions. Acceptable versions are:`r`n${AcceptableVersionsString}"
     }
 
