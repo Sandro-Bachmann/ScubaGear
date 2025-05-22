@@ -791,30 +791,14 @@ types to the Unified Audit Log.
 
 ### Policies
 #### MS.DEFENDER.6.1v1
-Microsoft Purview Audit (Standard) logging SHALL be enabled.
+Unified Audit logging SHALL be enabled.
 
 <!--Policy: MS.DEFENDER.6.1v1; Criticality: SHALL -->
-- _Rationale:_ Responding to incidents without detailed information about activities that took place slows response actions. Enabling Microsoft Purview Audit (Standard) helps ensure agencies have visibility into user actions. Furthermore, enabling the unified audit log is required for government agencies by OMB M-21-31 (referred to therein by its former name, Unified Audit Logs).
-- _Last modified:_ June 2023
+- _Rationale:_ Responding to incidents without detailed information about activities that took place slows response actions. Enabling Unified Audit logging helps ensure agencies have visibility into user actions. Furthermore, enabling the Unified Audit log is required for government agencies by OMB M-21-31.
+- _Last modified:_ March 2025
 - _MITRE ATT&CK TTP Mapping:_
   - [T1562: Impair Defenses](https://attack.mitre.org/techniques/T1562/)
     - [T1562.008: Disable or Modify Cloud Logs](https://attack.mitre.org/techniques/T1562/008/)
-
-
-#### MS.DEFENDER.6.2v1
-Microsoft Purview Audit (Premium) logging SHALL be enabled for ALL users.
-
-<!--Policy: MS.DEFENDER.6.2v1; Criticality: SHALL -->
-- _Rationale:_ Standard logging may not include relevant details necessary for visibility into user actions during an incident. Enabling Microsoft Purview Audit (Premium) captures additional event types not included with Standard. Furthermore, it is required for government agencies by OMB M-21-31 (referred to therein as by its former name, Unified Audit Logs w/Advanced Features).
-- _Last modified:_ June 2023
-- _Note:_ At the time of this writing, Microsoft has announced upcoming changes
-          to its Purview Audit service that include making audit events
-          currently available in Purview Audit (Premium) available to Purview
-          Audit (Standard) subscribers. After rollout of changes are complete,
-          Purview (Standard) may be sufficient for agencies to meet basic
-          logging requirements.
-- _MITRE ATT&CK TTP Mapping:_
-  - [T1070: Indicator Removal](https://attack.mitre.org/techniques/T1070/)
 
 #### MS.DEFENDER.6.3v1
 Audit logs SHALL be maintained for at least the minimum duration dictated by OMB M-21-31.
@@ -830,7 +814,6 @@ Audit logs SHALL be maintained for at least the minimum duration dictated by OMB
           to meet audit log retention needs.
 - _MITRE ATT&CK TTP Mapping:_
   - [T1070: Indicator Removal](https://attack.mitre.org/techniques/T1070/)
-
 
 ### Resources
 
@@ -883,11 +866,6 @@ To enable auditing via the Microsoft Purview compliance portal:
 administrator to start recording user and admin activity.
 
 4. Click the **Start recording user and admin activity**.
-
-#### MS.DEFENDER.6.2v1 Instructions
-To set up Microsoft Purview Audit (Premium), see [Set up Microsoft Purview Audit (Premium) \|
-Microsoft
-Learn.](https://learn.microsoft.com/en-us/purview/audit-premium-setup?view=o365-worldwide)
 
 #### MS.DEFENDER.6.3v1 Instructions
 To create one or more custom audit retention policies, if the default retention policy is not sufficient for agency needs, follow [Create an audit log retention policy](https://learn.microsoft.com/en-us/purview/audit-log-retention-policies?view=o365-worldwide#create-an-audit-log-retention-policy) instructions.

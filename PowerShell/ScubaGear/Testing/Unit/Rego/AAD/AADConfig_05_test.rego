@@ -132,37 +132,3 @@ test_IsEnabled_Incorrect if {
     TestResult("MS.AAD.5.3v1", Output, FAIL, false) == true
 }
 #--
-
-#
-# Policy MS.AAD.5.4v1
-#--
-test_Value_Correct_Lowercase if {
-    Output := aad.tests with input.directory_settings as [DirectorySettings]
-
-    TestResult("MS.AAD.5.4v1", Output, PASS, true) == true
-}
-
-test_Value_Correct_Uppercase if {
-    Settings := json.patch(DirectorySettings, [{"op": "add", "path": "Values/1/Value", "value": "False"}])
-
-    Output := aad.tests with input.directory_settings as [Settings]
-
-    TestResult("MS.AAD.5.4v1", Output, PASS, true) == true
-}
-
-test_Value_Incorrect_Lowercase if {
-    Settings := json.patch(DirectorySettings, [{"op": "add", "path": "Values/1/Value", "value": "true"}])
-
-    Output := aad.tests with input.directory_settings as [Settings]
-
-    TestResult("MS.AAD.5.4v1", Output, FAIL, false) == true
-}
-
-test_Value_Incorrect_Uppercase if {
-    Settings := json.patch(DirectorySettings, [{"op": "add", "path": "Values/1/Value", "value": "True"}])
-
-    Output := aad.tests with input.directory_settings as [Settings]
-
-    TestResult("MS.AAD.5.4v1", Output, FAIL, false) == true
-}
-#--

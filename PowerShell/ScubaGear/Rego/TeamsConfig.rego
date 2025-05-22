@@ -234,12 +234,12 @@ tests contains {
 #--
 
 #
-# MS.TEAMS.1.7v1
+# MS.TEAMS.1.7v2
 #--
 
 # Pass if BroadcastRecordingMode is set to UserOverride for global policy
 tests contains {
-    "PolicyId": "MS.TEAMS.1.7v1",
+    "PolicyId": "MS.TEAMS.1.7v2",
     "Criticality": "Should",
     "Commandlet": ["Get-CsTeamsMeetingBroadcastPolicy"],
     "ActualValue": Policy.BroadcastRecordingMode,
@@ -255,7 +255,7 @@ tests contains {
 
 # Edge case where pulling configuration from tenant fails
 tests contains {
-    "PolicyId": "MS.TEAMS.1.7v1",
+    "PolicyId": "MS.TEAMS.1.7v2",
     "Criticality": "Should",
     "Commandlet": ["Get-CsTeamsMeetingBroadcastPolicy"],
     "ActualValue": "PowerShell Error",
@@ -265,6 +265,8 @@ tests contains {
     count(input.broadcast_policies) == 0
 }
 #--
+
+
 
 
 ##############
@@ -502,7 +504,7 @@ tests contains {
     "RequirementMet": Status
 } if {
     Policies := PoliciesBlockingDefaultApps
-    String := "meeting policy(ies) found that does not restrict installation of Microsoft Apps by default:"
+    String := "app permission policy(ies) found that does not restrict installation of Microsoft Apps by default:"
     Status := count(Policies) == 0
 }
 #--
@@ -528,7 +530,7 @@ tests contains {
     "RequirementMet": Status
 } if {
     Policies := PoliciesAllowingGlobalApps
-    String := "meeting policy(ies) found that does not restrict installation of third-party apps by default:"
+    String := "app permission policy(ies) found that does not restrict installation of third-party apps by default:"
     Status := count(Policies) == 0
 }
 #--
@@ -555,7 +557,7 @@ tests contains {
     "RequirementMet": Status
 } if {
     Policies := PoliciesAllowingCustomApps
-    String := "meeting policy(ies) found that does not restrict installation of custom apps by default:"
+    String := "app permission policy(ies) found that does not restrict installation of custom apps by default:"
     Status := count(Policies) == 0
 }
 #--

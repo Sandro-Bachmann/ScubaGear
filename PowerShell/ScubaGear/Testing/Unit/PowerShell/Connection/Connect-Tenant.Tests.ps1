@@ -1,7 +1,8 @@
-Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "../../../../Modules/Connection/Connection.psm1") -Function 'Connect-Tenant' -Force
+Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "../../../../Modules/Connection/Connection.psm1") -Function 'Connect-Tenant' -Force   
 
 InModuleScope Connection {
-
+    Import-Module (Join-Path -Path $PSScriptRoot -ChildPath "../../../../Modules/Permissions/PermissionsHelper.psm1") -Force
+    
     Describe -Tag 'Connection' -Name "Connect-Tenant as <Endpoint>" -ForEach @(
         @{Endpoint = 'commercial'},
         @{Endpoint = 'gcc'},
@@ -45,7 +46,7 @@ InModuleScope Connection {
         }
         Context 'With Endpoint:  <Endpoint>; ProductNames: <ProductNames>' -ForEach @(
             @{ProductNames = "aad"; Services = @('Connect-GraphHelper')}
-            @{ProductNames = "defender"; Services = @('Connect-EXOHelper', 'Connect-GraphHelper')}
+            @{ProductNames = "defender"; Services = @('Connect-EXOHelper')}
             @{ProductNames = "exo"; Services = @('Connect-EXOHelper')}
             @{ProductNames = "powerplatform"; Services = @('Add-PowerAppsAccount')}
             @{ProductNames = "sharepoint"; Services = @('Connect-GraphHelper', 'Connect-PnPOnline')}

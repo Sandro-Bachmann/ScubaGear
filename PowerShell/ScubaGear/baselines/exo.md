@@ -59,16 +59,20 @@ forwarding rules to exfiltrate data to external recipients.
 
 ### Policies
 
-#### MS.EXO.1.1v1
+#### MS.EXO.1.1v2
 Automatic forwarding to external domains SHALL be disabled.
 
-<!--Policy: MS.EXO.1.1v1; Criticality: SHALL -->
+<!--Policy: MS.EXO.1.1v2; Criticality: SHALL -->
 - _Rationale:_ Adversaries can use automatic forwarding to gain
 persistent access to a victim's email. Disabling forwarding to
 external domains prevents this technique when the adversary is
 external to the organization but does not impede legitimate
 internal forwarding.
-- _Last modified:_ June 2023
+- _Last modified:_ March 2025
+- _Note:_ Automatic forwarding MAY be enabled with specific, agency-approved domains.
+There may be cases where an external domain is operationally needed and has an acceptable
+degree of risk, e.g., a domain controlled by the same agency but that hasn't been added
+as an accepted domain in M365.
 - _MITRE ATT&CK TTP Mapping:_
   - [T1567: Exfiltration Over Web Service](https://attack.mitre.org/techniques/T1567/)
   - [T1048: Exfiltration Over Alternative Protocol](https://attack.mitre.org/techniques/T1048/)
@@ -87,7 +91,7 @@ internal forwarding.
 
 ### Implementation
 
-#### MS.EXO.1.1v1 Instructions
+#### MS.EXO.1.1v2 Instructions
 To disallow automatic forwarding to external domains:
 
 1.  Sign in to the **Exchange admin center**.
@@ -101,8 +105,9 @@ To disallow automatic forwarding to external domains:
 5.  Clear the checkbox next to **Allow automatic forwarding**, then
     click **Save**.
 
-6.  Return to **Remote domains** and repeat steps 4 and 5 for each
-    additional remote domain in the list.
+6.  Return to **Remote domains** and review each
+    additional remote domain in the list, ensuring that automatic forwarding
+    is only allowed for approved domains.
 
 ## 2. Sender Policy Framework
 
@@ -120,7 +125,7 @@ points.
 #### MS.EXO.2.2v2
 An SPF policy SHALL be published for each domain that fails all non-approved senders.
 
-<!--Policy: MS.EXO.2.1v1; Criticality: SHALL -->
+<!--Policy: MS.EXO.2.2v1; Criticality: SHALL -->
 - _Rationale:_ An adversary may modify the `FROM` field
 of an email such that it appears to be a legitimate email sent by an
 agency, facilitating phishing attacks. Publishing an SPF policy for each agency domain mitigates forged `FROM` fields by providing a means for recipients to detect emails spoofed in this way.  SPF is required for FCEB departments and agencies by Binding Operational Directive (BOD) 18-01, "Enhance Email and Web Security".
@@ -1439,35 +1444,11 @@ Office 365.
 ### Policies
 
 #### MS.EXO.17.1v1
-Microsoft Purview Audit (Standard) logging SHALL be enabled.
+Unified Audit logging SHALL be enabled.
 
 <!--Policy: MS.EXO.17.1v1; Criticality: SHALL -->
-- _Rationale:_ Responding to incidents without detailed information about
-activities that took place slows response actions. Enabling Microsoft
-Purview Audit (Standard) helps ensure agencies have visibility into user
-actions. Furthermore, Microsoft Purview Audit (Standard) is required for
-government agencies by OMB M-21-31 (referred to therein by its former
-name, Unified Audit Logs).
-- _Last modified:_ June 2023
-- _MITRE ATT&CK TTP Mapping:_
-  - [T1562: Impair Defenses](https://attack.mitre.org/techniques/T1562/)
-    - [T1562.008: Disable or Modify Cloud Logs](https://attack.mitre.org/techniques/T1562/008/)
-
-#### MS.EXO.17.2v1
-Microsoft Purview Audit (Premium) logging SHALL be enabled.
-
-<!--Policy: MS.EXO.17.2v1; Criticality: SHALL -->
-- _Rationale:_ Standard logging may not include relevant details necessary for
-visibility into user actions during an incident. Enabling Microsoft Purview Audit
-(Premium) captures additional event types not included with Standard.
-Furthermore, it is required for government agencies by OMB M-21-31 (referred to therein by its former name, Unified Audit Logs w/Advanced Features).
-- _Last modified:_ June 2023
-- _Note:_ At the time of this writing, Microsoft has announced upcoming changes
-          to its Purview Audit service that include making audit events
-          currently available in Purview Audit (Premium) available to Purview
-          Audit (Standard) subscribers. After rollout of changes are complete,
-          Purview (Standard) may be sufficient for agencies to meet basic
-          logging requirements.
+- _Rationale:_ Responding to incidents without detailed information about activities that took place slows response actions. Enabling Unified Audit logging helps ensure agencies have visibility into user actions. Furthermore, enabling the Unified Audit log is required for government agencies by OMB M-21-31.
+- _Last modified:_ March 2025
 - _MITRE ATT&CK TTP Mapping:_
   - [T1562: Impair Defenses](https://attack.mitre.org/techniques/T1562/)
     - [T1562.008: Disable or Modify Cloud Logs](https://attack.mitre.org/techniques/T1562/008/)
@@ -1482,8 +1463,15 @@ gives an agency the necessary visibility to investigate incidents that occurred
 some time ago. OMB M-21-13, Appendix C, Table 5 specifically calls out Unified
 Audit Logs in the Cloud Azure log category.
 - _Last modified:_ June 2023
+- _Note_: Microsoft 365 Purview (Premium) provides a default audit log retention policy,
+          retaining Exchange Online, SharePoint Online, OneDrive for
+          Business, and Microsoft Entra ID audit records for one year.
+          Additional record types require custom audit retention policies.
+          Agencies may also consider alternate storage locations and services
+          to meet audit log retention needs.
 - _MITRE ATT&CK TTP Mapping:_
-  - None
+  - [T1070: Indicator Removal](https://attack.mitre.org/techniques/T1070/)
+
 
 ### Resources
 
@@ -1498,9 +1486,9 @@ Audit Logs in the Cloud Azure log category.
 
 ### License Requirements
 
-- Microsoft Purview Audit (Premium) logging capabilities, including creating
-  a custom audit log retention policy, requires E5/G5 licenses or
-  E3/G3 licenses with add-on compliance licenses.
+- Microsoft 365 Audit (Premium) capabilities, including the creation of a custom audit
+  log retention policy, requires E5/G5 licenses or E3/G3 licenses with
+  add-on compliance licenses.
 
 - Additionally, maintaining logs in the M365 environment for longer than one
   year requires an add-on license. For more information, see
@@ -1510,18 +1498,12 @@ Audit Logs in the Cloud Azure log category.
 ### Implementation
 
 #### MS.EXO.17.1v1 Instructions
-See the following implementation steps for enabling [Microsoft Purview
-(Standard)](./defender.md#msdefender61v1-instructions) for additional
-guidance.
-
-#### MS.EXO.17.2v1 Instructions
-See the following implementation steps for enabling [Microsoft Purview
-(Premium)](./defender.md#msdefender62v1-instructions) for additional
+See the following implementation steps for enabling [Unified Audit logging](./defender.md#msdefender61v1-instructions) for additional
 guidance.
 
 #### MS.EXO.17.3v1 Instructions
 See the following implementation steps to
-[create an audit retention policy](./defender.md#msdefender62v1-instructions)
+[create an audit retention policy](./defender.md#msdefender63v1-instructions)
 for additional guidance.
 
 **`TLP:CLEAR`**

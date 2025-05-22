@@ -41,10 +41,11 @@ function Export-DefenderProvider {
             if ($ServicePrincipalParams) {
                 $EXOHelperParams += @{ServicePrincipalParams = $ServicePrincipalParams}
             }
+
             Connect-EXOHelper @ServicePrincipalParams;
         }
         catch {
-            Write-Error "Error connecting to ExchangeOnline. $($_)"
+            Write-Warning "Error connecting to ExchangeOnline: $($_.Exception.Message)`n$($_.ScriptStackTrace)"
         }
     }
 
@@ -93,7 +94,7 @@ function Export-DefenderProvider {
         $IPPSConnected = $true
     }
     catch {
-        Write-Error "Error running Connect-IPPSSession. $($_)"
+        Write-Warning "Error running Connect-IPPSSession: $($_.Exception.Message)`n$($_.ScriptStackTrace)"
         Write-Warning "Omitting the following commands: Get-DlpCompliancePolicy, Get-DlpComplianceRule, and Get-ProtectionAlert."
         $Tracker.AddUnSuccessfulCommand("Get-DlpCompliancePolicy")
         $Tracker.AddUnSuccessfulCommand("Get-DlpComplianceRule")
@@ -143,22 +144,6 @@ function Export-DefenderProvider {
         $DLPLicense = ConvertTo-Json $false
     }
 
-    # Get count of users without Advanced auditing enabled
-    # GUID below is service plan ID for M365_ADVANCED_AUDITING as defined
-    # on Microsoft Licensing Reference shown here:
-    # https://learn.microsoft.com/en-us/entra/identity/users/licensing-service-plan-reference
-    $UserParameters = @{ConsistencyLevel = 'eventual'
-                        Count = 'UsersWithoutAdvancedAuditCount'
-                        Top = 1
-                        Filter = "not assignedPlans/any(a:a/servicePlanId eq 2f442157-a11c-46b9-ae5b-6e39ff4e5849 and a/capabilityStatus eq 'Enabled')"
-                       }
-
-    $Tracker.TryCommand("Get-MgBetaUser", $UserParameters) | Out-Null
-
-    if(-Not $UsersWithoutAdvancedAuditCount -Or (-Not $UsersWithoutAdvancedAuditCount -is [int])) {
-        $UsersWithoutAdvancedAuditCount = "-1"
-    }
-
     $SuccessfulCommands = ConvertTo-Json @($Tracker.GetSuccessfulCommands())
     $UnSuccessfulCommands = ConvertTo-Json @($Tracker.GetUnSuccessfulCommands())
 
@@ -172,7 +157,6 @@ function Export-DefenderProvider {
     "protection_alerts": $ProtectionAlert,
     "admin_audit_log_config": $AdminAuditLogConfig,
     "atp_policy_for_o365": $ATPPolicy,
-    "total_users_without_advanced_audit": $UsersWithoutAdvancedAuditCount,
     "defender_license": $DefenderLicense,
     "defender_dlp_license": $DLPLicense,
     "defender_successful_commands": $SuccessfulCommands,

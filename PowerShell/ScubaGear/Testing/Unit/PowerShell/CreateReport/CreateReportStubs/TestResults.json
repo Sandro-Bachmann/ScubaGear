@@ -66,7 +66,7 @@
 
                        ],
         "Criticality":  "Should/Not-Implemented",
-        "PolicyId":  "MS.AAD.3.3v1",
+        "PolicyId":  "MS.AAD.3.3v2",
         "ReportDetails":  "Not currently checked automatically. See \u003ca href=\"https://github.com/cisagov/ScubaGear/blob/0.3.0/baselines/aad.md#msaad33v1\" target=\"_blank\"\u003eSecure Configuration Baseline policy\u003c/a\u003e for instructions on manual check",
         "RequirementMet":  false
     },
@@ -279,6 +279,18 @@
     },
     {
         "ActualValue":  [
+
+                        ],
+        "Commandlet":  [
+                           "Get-MgBetaIdentityConditionalAccessPolicy"
+                       ],
+        "Criticality":  "Should",
+        "PolicyId":  "MS.AAD.3.9v1",
+        "ReportDetails":  "0 conditional access policy(s) found that meet(s) all requirements. \u003ca href=\u0027#caps\u0027\u003eView all CA policies\u003c/a\u003e.",
+        "RequirementMet":  false
+    },
+    {
+        "ActualValue":  [
                         ],
         "Commandlet":  [
                            "Get-MgBetaSubscribedSku",
@@ -423,22 +435,6 @@
         "RequirementMet":  true
     },
     {
-        "ActualValue":  [
-                            {
-                                "Name":  "EnableGroupSpecificConsent",
-                                "SettingsGroup":  "Consent Policy Settings",
-                                "Value":  "false"
-                            }
-                        ],
-        "Commandlet":  [
-                           "Get-MgBetaDirectorySetting"
-                       ],
-        "Criticality":  "Shall",
-        "PolicyId":  "MS.AAD.5.4v1",
-        "ReportDetails":  "Requirement met",
-        "RequirementMet":  true
-    },
-    {
         "ActualValue":  true,
         "Commandlet":  [
                            "Get-AntiPhishPolicy"
@@ -562,16 +558,6 @@
                        ],
         "Criticality":  "Should",
         "PolicyId":  "MS.DEFENDER.6.5v1",
-        "ReportDetails":  "Requirement met",
-        "RequirementMet":  true
-    },
-    {
-        "ActualValue":  "MoveToJmf",
-        "Commandlet":  [
-                           "Get-HostedContentFilterPolicy"
-                       ],
-        "Criticality":  "Shall",
-        "PolicyId":  "MS.DEFENDER.6.2v1",
         "ReportDetails":  "Requirement met",
         "RequirementMet":  true
     },
@@ -1682,18 +1668,6 @@
                        ],
         "Criticality":  "Shall/3rd Party",
         "PolicyId":  "MS.EXO.17.1v1",
-        "ReportDetails":  "Custom implementation allowed. If you are using Defender to fulfill this requirement, run the Defender version of this script. Otherwise, use a 3rd party tool OR manually check",
-        "RequirementMet":  false
-    },
-    {
-        "ActualValue":  [
-
-                        ],
-        "Commandlet":  [
-
-                       ],
-        "Criticality":  "Shall/3rd Party",
-        "PolicyId":  "MS.EXO.17.2v1",
         "ReportDetails":  "Custom implementation allowed. If you are using Defender to fulfill this requirement, run the Defender version of this script. Otherwise, use a 3rd party tool OR manually check",
         "RequirementMet":  false
     },
@@ -2968,7 +2942,7 @@
                            "Get-RemoteDomain"
                        ],
         "Criticality":  "Shall",
-        "PolicyId":  "MS.EXO.1.1v1",
+        "PolicyId":  "MS.EXO.1.1v2",
         "ReportDetails":  "Requirement met",
         "RequirementMet":  true
     },

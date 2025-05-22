@@ -64,6 +64,28 @@ function New-PrivateGallery {
   Write-Output "The gallery was registered..."
 }
 
+function Remove-NonReleaseFiles {
+  <#
+    .SYNOPSIS
+      Removes files from the repo that should not be published, such at git files.
+    .PARAMETER $RootFolderName
+      The name of the root folder.
+  #>
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]
+    $RootFolderName
+  )
+  Write-Output "Removing non-release files..."
+  # Verify that folder exists
+  if (-not (Test-Path -Path $RootFolderName)) {
+    Write-Output "The root folder doesn't exist: $RootFolderName"
+    throw [System.IO.DirectoryNotFoundException] "Directory not found: $RootFolderName"
+  }
+  Remove-Item -Recurse -Force $RootFolderName -Include .git*
+}
+
 function Publish-ScubaGearModule {
   <#
     .Description
@@ -114,48 +136,54 @@ function Publish-ScubaGearModule {
     $NuGetApiKey
   )
 
+  $ModuleVersion = ""
+
   try {
     # Most of the functions called below can throw an error if something goes wrong,
     # hence the try-catch block.
 
-    Write-Output "Copying the module to a temp location..."
+    Write-Warning "Copying the module to a temp location..."
     $ModuleDestinationPath = Copy-ModuleToTempLocation `
     -ModuleSourcePath $ModuleSourcePath `
     -ModuleTempPath $env:TEMP
 
-    Write-Output "Editing the manifest file..."
-    Edit-ManifestFile `
+    # Somewhere in the Edit-ManifestFile method something is adding implicit expression output.
+    # The only output that I want from this method is the module version number.
+    # The Select-Object -Last 1 is designed to suppress everything but the module version number.
+    # Yes, this is a kludge, but PowerShell doesn't have a graceful way of handling this.
+    Write-Warning "Editing the manifest file..."
+    $ModuleVersion = (Edit-ManifestFile `
     -ModuleDestinationPath $ModuleDestinationPath `
     -OverrideModuleVersion $OverrideModuleVersion `
-    -PrereleaseTag $PrereleaseTag
+    -PrereleaseTag $PrereleaseTag) | Select-Object -Last 1
 
-    Write-Output "Creating an array of the files to sign..."
+    Write-Warning "Creating an array of the files to sign..."
     $ArrayOfFilePaths = New-ArrayOfFilePaths `
     -ModuleDestinationPath $ModuleDestinationPath
 
-    Write-Output "Creating a file with a list of the files to sign..."
+    Write-Warning "Creating a file with a list of the files to sign..."
     $FileListFileName = New-FileList `
     -ArrayOfFilePaths $ArrayOfFilePaths
 
-    Write-Output "Calling AzureSignTool function to sign scripts, manifest, and modules..."
+    Write-Warning "Calling AzureSignTool function to sign scripts, manifest, and modules..."
     Use-AzureSignTool `
       -AzureKeyVaultUrl $AzureKeyVaultUrl `
       -CertificateName $CertificateName `
       -FileList $FileListFileName
 
-    Write-Output "Creating the catalog list file..."
+    Write-Warning "Creating the catalog list file..."
     $ReturnObject = New-ScubaCatalogFile `
       -ModuleDestinationPath $ModuleDestinationPath
     $CatalogFilePath = $($ReturnObject.CatalogFilePath)
     $CatalogList = $($ReturnObject.TempCatalogList)
 
-    Write-Output "Calling AzureSignTool function to sign catalog list..."
+    Write-Warning "Calling AzureSignTool function to sign catalog list..."
     Use-AzureSignTool `
       -AzureKeyVaultUrl $AzureKeyVaultUrl `
       -CertificateName $CertificateName `
       -FileList $CatalogList
 
-    Write-Output "Testing the catalog file..."
+    Write-Warning "Testing the catalog file..."
     Test-ScubaCatalogFile `
       -CatalogFilePath $CatalogFilePath
 
@@ -167,7 +195,7 @@ function Publish-ScubaGearModule {
       $Parameters.Add('NuGetApiKey', $NuGetApiKey)
     }
 
-    Write-Output "The ScubaGear module will be published..."
+    Write-Warning "The ScubaGear module will be published..."
     # The -Force parameter is only required if the new version is less than or equal to
     # the current version, which is typically only true when testing.
     Publish-Module @Parameters -Force
@@ -176,6 +204,7 @@ function Publish-ScubaGearModule {
     Write-Error "An error occurred when publishing ScubaGear.  Exiting..."
     exit 1
   }
+  $ModuleVersion
 }
 
 function Copy-ModuleToTempLocation {
@@ -228,7 +257,7 @@ function Edit-ManifestFile {
     .DESCRIPTION
       Updates the manifest file in the module with info that PSGallery needs
       Throws an error if the manifest file cannot be found or updated.
-      No return.
+      Returns the module version.
   #>
   param (
     [Parameter(Mandatory = $true)]
@@ -314,6 +343,7 @@ function Edit-ManifestFile {
     Write-Error = $ErrorMessage
     throw $ErrorMessage
   }
+  $ModuleVersion
 }
 
 function New-ArrayOfFilePaths {
@@ -381,7 +411,7 @@ function New-FileList {
 
 function Use-AzureSignTool {
   <#
-    .DESCRIPTION
+    .SYNOPSIS
       AzureSignTool is a utility for signing code that is used to secure ScubaGear.
       https://github.com/vcsjones/AzureSignTool
       Throws an error if there was an error signing the files.
@@ -429,7 +459,6 @@ function Use-AzureSignTool {
   Write-Warning "The path to AzureSignTool is $ToolPath"
   # & is the call operator that executes a command, script, or function.
   $Results = & $ToolPath $SignArguments
-
   # Test the results for failures.
   # If there are no failures, the $SuccessPattern string will be the last
   # line in the results.

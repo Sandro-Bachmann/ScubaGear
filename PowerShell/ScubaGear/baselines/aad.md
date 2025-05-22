@@ -203,7 +203,7 @@ Figure 1: Depiction of MFA methods from weakest to strongest. _Adapted from [Mic
 #### MS.AAD.3.1v1
 Phishing-resistant MFA SHALL be enforced for all users.
 
-The phishing-resistant methods **Microsoft Entra ID certificate-based authentication (CBA)**, **FIDO2 Security Key** and **Windows Hello for Business** are the recommended authentication options since they offer forms of MFA with the least weaknesses. For federal agencies, Microsoft Entra ID CBA supports federal PIV card authentication directly to Microsoft Entra ID.
+The phishing-resistant methods **Microsoft Entra ID certificate-based authentication (CBA)**, **FIDO2 Security Key**, **Windows Hello for Business**, and **device-bound passkeys** (in the authenticator app of choice) are the recommended authentication options since they offer forms of MFA with the least weaknesses. For federal agencies, Microsoft Entra ID CBA supports federal PIV card authentication directly to Microsoft Entra ID.
 
 If on-premises PIV authentication and federation to Microsoft Entra ID is used, [enforce PIV logon via Microsoft Active Directory group policy](https://www.idmanagement.gov/implement/scl-windows/).
 
@@ -228,12 +228,12 @@ If phishing-resistant MFA has not been enforced, an alternative MFA method SHALL
     - [T1110.002: Password Cracking](https://attack.mitre.org/techniques/T1110/002/)
     - [T1110.003: Password Spraying](https://attack.mitre.org/techniques/T1110/003/)
     
-#### MS.AAD.3.3v1
-If phishing-resistant MFA has not been enforced and Microsoft Authenticator is enabled, it SHALL be configured to show login context information.
+#### MS.AAD.3.3v2
+If Microsoft Authenticator is enabled, it SHALL be configured to show login context information.
 
-<!--Policy: MS.AAD.3.3v1; Criticality: SHALL -->
-- _Rationale:_ This stopgap security policy helps protect the tenant when phishing-resistant MFA has not been enforced and Microsoft Authenticator is used. This policy helps improve the security of Microsoft Authenticator by showing user context information, which helps reduce MFA phishing compromises.
-- _Last modified:_ June 2023
+<!--Policy: MS.AAD.3.3v2; Criticality: SHALL -->
+- _Rationale:_ This policy helps protect the tenant when Microsoft Authenticator is used by showing user context information, which helps reduce MFA phishing compromises.
+- _Last modified:_ March 2025
 - _MITRE ATT&CK TTP Mapping:_
   - [T1110: Brute Force](https://attack.mitre.org/techniques/T1110/)
     - [T1110.001: Password Guessing](https://attack.mitre.org/techniques/T1110/001/)
@@ -298,6 +298,17 @@ Managed Devices SHOULD be required to register MFA.
   - [T1098: Account Manipulation](https://attack.mitre.org/techniques/T1098/)
     - [T1098.005: Device Registration](https://attack.mitre.org/techniques/T1098/005/)
 
+#### MS.AAD.3.9v1
+Device code authentication SHOULD be blocked.
+
+<!--Policy: MS.AAD.3.9v1; Criticality: SHOULD -->
+- _Rationale:_ The device code authentication flow has been abused by threat actors to compromise user accounts via phishing. Since most organizations using M365 don't need device code authentication, blocking it mitigates the risk of this attack vector.
+- _Last modified:_ February 2025
+- _MITRE ATT&CK TTP Mapping:_
+  - [T1528: Steal Application Access Token](https://attack.mitre.org/techniques/T1528/)
+  - [T1078: Valid Accounts](https://attack.mitre.org/techniques/T1078/)
+    - [T1078.004: Cloud Accounts](https://attack.mitre.org/techniques/T1078/004/)
+
 ### Resources
 
 - [What authentication and verification methods are available in Microsoft Entra ID?](https://learn.microsoft.com/en-us/entra/identity/authentication/concept-authentication-methods)
@@ -311,6 +322,14 @@ Managed Devices SHOULD be required to register MFA.
 - [Microsoft Entra joined devices](https://learn.microsoft.com/en-us/entra/identity/devices/concept-directory-join)
 
 - [Set up automatic enrollment for Windows devices (for Intune)](https://learn.microsoft.com/en-us/mem/intune/enrollment/windows-enroll)
+
+- [Enable passkeys (FIDO2) for your organization](https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-enable-passkey-fido2)
+
+- [Storm-2372 conducts device code phishing campaign](https://www.microsoft.com/en-us/security/blog/2025/02/13/storm-2372-conducts-device-code-phishing-campaign/)
+
+- [Microsoft 365 Device Code Phishing Cyber Attack – Demonstration, Analysis and Mitigation](https://github.com/cisagov/ScubaGear/issues/1599)
+
+- [Block device code flow](https://learn.microsoft.com/en-us/entra/identity/conditional-access/managed-policies#block-device-code-flow)
 
 ### License Requirements
 
@@ -342,10 +361,10 @@ Managed Devices SHOULD be required to register MFA.
   Access controls > Grant > Grant Access > <b>Require multifactor authentication</b>
 </pre>
 
-#### MS.AAD.3.3v1 Instructions
-If phishing-resistant MFA has not been deployed yet and Microsoft Authenticator is in use, configure Authenticator to display context information to users when they log in.
+#### MS.AAD.3.3v2 Instructions
+If Microsoft Authenticator is in use, configure Authenticator to display context information to users when they log in.
 
-1. In ** Microsoft Entra admin center**, click **Security > Authentication methods > Microsoft Authenticator**.
+1. In **Microsoft Entra admin center**, click **Security > Authentication methods > Microsoft Authenticator**.
 2. Click the **Configure** tab.
 3. For **Allow use of Microsoft Authenticator OTP** select *No*.
 4. Under **Show application name in push and passwordless notifications** select **Status > Enabled** and **Target > Include > All users**.
@@ -395,6 +414,20 @@ If phishing-resistant MFA has not been deployed yet and Microsoft Authenticator 
   Target resources > User actions > <b>Register security information</b>
 
   Access controls > Grant > Grant Access > <b>Require device to be marked as compliant</b> and <b>Require Microsoft Entra ID hybrid joined device</b> > For multiple controls > <b>Require one of the selected controls</b>
+</pre>
+
+#### MS.AAD.3.9v1 Instructions
+
+1. Create a Conditional Access policy to block device code flow
+
+<pre>
+  Users > Include > <b>All users</b>
+
+  Target resources > Cloud apps >  Include > <b>All cloud apps</b>
+
+  Conditions > Authentication Flows > Configure > <b>Yes</b> > Select <b>Device code flow</b>
+
+  Access controls > Grant > <b>Block Access</b>
 </pre>
 
 ## 4. Centralized Log Collection
@@ -470,17 +503,6 @@ An admin consent workflow SHALL be configured for applications.
     - [T1098.001: Additional Cloud Credentials](https://attack.mitre.org/techniques/T1098/001/)
     - [T1098.003: Additional Cloud Roles](https://attack.mitre.org/techniques/T1098/003/)
 
-#### MS.AAD.5.4v1
-Group owners SHALL NOT be allowed to consent to applications.
-
-<!--Policy: MS.AAD.5.4v1; Criticality: SHALL -->
-- _Rationale:_ In M365, group owners and team owners can consent to applications accessing data in the tenant. By requiring consent requests to go through an approval workflow, risk of exposure to malicious applications is reduced.
-- _Last modified:_ June 2023
-- _MITRE ATT&CK TTP Mapping:_
-  - [T1098: Account Manipulation](https://attack.mitre.org/techniques/T1098/)
-    - [T1098.001: Additional Cloud Credentials](https://attack.mitre.org/techniques/T1098/001/)
-    - [T1098.003: Additional Cloud Roles](https://attack.mitre.org/techniques/T1098/003/)
-
 ### Resources
 
 - [Restrict Application Registration for Non-Privileged Users](https://www.trendmicro.com/cloudoneconformity/knowledge-base/azure/ActiveDirectory/users-can-register-applications.html)
@@ -528,16 +550,6 @@ Group owners SHALL NOT be allowed to consent to applications.
 5. Under **Who can review admin consent requests**, select **+ Add groups** and select the group responsible for reviewing and adjudicating app requests (created in step one above).
 
 6. Click **Save**.
-
-#### MS.AAD.5.4v1 Instructions
-
-1.  In **Microsoft Entra admin center**  under **Applications**, select **Enterprise Applications**.
-
-2. Under **Security**, select **Consent and permissions**. Then select **User Consent Settings**.
-
-3. Under **Group owner consent for apps accessing data**, select **Do not allow group owner consent**.
-
-4. Click **Save**.
 
 ## 6. Passwords
 
